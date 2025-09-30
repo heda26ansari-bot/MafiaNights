@@ -1,19 +1,25 @@
+# استفاده از تصویر سبک Python 3.11
 FROM python:3.11-slim
 
+# تنظیم مسیر کاری داخل کانتینر
 WORKDIR /Mafia
 
+# کپی فایل requirements برای نصب پکیج‌ها
 COPY requirements.txt .
 
-# ساخت venv و نصب پکیج‌ها
-RUN python -m venv /opt/venv \
-    && /opt/venv/bin/pip install --upgrade pip \
-    && /opt/venv/bin/pip install -r requirements.txt
+# نصب پکیج‌ها روی Python اصلی و رفع وابستگی‌های احتمالی
+RUN apt-get update && apt-get install -y gcc libffi-dev \
+    && pip install --upgrade pip \
+    && pip install -r requirements.txt \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
+# کپی کل پروژه
 COPY . .
 
-# ایجاد اسکریپت اجرا
-RUN echo '#!/bin/sh\n/opt/venv/bin/python /Mafia/main.py' > /run.sh \
-    && chmod +x /run.sh
+# بررسی نصب aiogram (اختیاری، برای debug)
+RUN pip show aiogram
 
 # اجرای ربات
-CMD ["/run.sh"]
+CMD ["python", "main.py"]
+
