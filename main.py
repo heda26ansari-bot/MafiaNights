@@ -2618,14 +2618,40 @@ async def challenge_off_handler(callback: types.CallbackQuery):
 
 @dp.callback_query_handler(lambda c: c.data == "challenge_toggle")
 async def challenge_toggle_handler(callback: types.CallbackQuery):
-    global challenge_active
+    global challenge_active, group_chat_id, game_message_id
 
-    if callback.from_user.id != moderator_id:
-        await callback.answer("❌ فقط گرداننده می‌تواند وضعیت چالش را تغییر دهد.", show_alert=True)
+    # فقط گرداننده یا ادمین اجازه داره
+    admins = await bot.get_chat_administrators(group_chat_id)
+    admin_ids = [a.user.id for a in admins]
+
+    if callback.from_user.id != moderator_id and callback.from_user.id not in admin_ids:
+        await callback.answer("⛔ فقط گرداننده یا ادمین‌ها می‌توانند وضعیت چالش را تغییر دهند.", show_alert=True)
         return
 
-    # اینجا: تغییر وضعیت
+    # تغییر وضعیت چالش
     challenge_active = not challenge_active
+
+    # ساخت کیبورد جدید
+    kb = InlineKeyboardMarkup(row_width=1)
+    kb.add(InlineKeyboardButton("👑 انتخاب سر صحبت", callback_data="choose_head"))
+    kb.add(InlineKeyboardButton("▶ شروع دور", callback_data="start_round"))
+    kb.add(
+        InlineKeyboardButton(
+            "⚔ چالش روشن" if challenge_active else "⚔ چالش خاموش",
+            callback_data="challenge_toggle"
+        )
+    )
+
+    # به‌روزرسانی پیام بازی در گروه
+    try:
+        await bot.edit_message_reply_markup(chat_id=group_chat_id, message_id=game_message_id, reply_markup=kb)
+    except Exception as e:
+        logging.warning(f"❌ خطا در ویرایش دکمه چالش: {e}")
+
+    await callback.answer(f"✅ چالش {'روشن' if challenge_active else 'خاموش'} شد.")
+
+
+
 #=============================
 # تایمر زندهٔ نوبت (ویرایش پیام هر N ثانیه)
 #=============================
