@@ -1046,25 +1046,35 @@ async def birthday_player_confirm(callback: types.CallbackQuery):
 #=======================
 @dp.callback_query_handler(lambda c: c.data.startswith("cancel_"))
 async def cancel_game_handler(callback: types.CallbackQuery):
-    global players, removed_players, substitute_list
+    global players, removed_players, substitute_list, group_chat_id, lobby_active, game_running
 
     user_id = callback.from_user.id
-    chat_id = callback.message.chat.id
 
-    # گرفتن لیست ادمین‌های گروه
-    admins = await callback.bot.get_chat_administrators(chat_id)
-    admin_ids = [admin.user.id for admin in admins]
-
-    # شرط دسترسی
-    if not reserved_god or (user_id != reserved_god.get("id") and user_id not in admin_ids):
-        await callback.answer("⛔ فقط گرداننده یا مدیران گروه می‌تونن بازی رو لغو کنن!", show_alert=True)
+    if not group_chat_id:
+        await callback.answer("🚫 هنوز هیچ بازی فعالی وجود ندارد.", show_alert=True)
         return
 
+    # گرفتن لیست ادمین‌های گروه برای دسترسی
+    admins = await bot.get_chat_administrators(group_chat_id)
+    admin_ids = [a.user.id for a in admins]
+
+    if user_id != moderator_id and user_id not in admin_ids:
+        await callback.answer("⛔ فقط گرداننده یا مدیران گروه می‌توانند بازی را لغو کنند.", show_alert=True)
+        return
+
+    # پاک‌سازی کامل داده‌ها
     players.clear()
     removed_players.clear()
     substitute_list.clear()
+    lobby_active = False
+    game_running = False
 
-    await callback.message.answer("🚫 بازی لغو شد.")
+    try:
+        await bot.send_message(group_chat_id, "🚫 بازی لغو شد توسط گرداننده یا مدیر.")
+    except:
+        pass
+
+    await callback.message.answer("✅ بازی لغو شد و همه داده‌ها ریست شدند.")
     await callback.answer()
 
 
