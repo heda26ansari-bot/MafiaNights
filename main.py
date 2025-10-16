@@ -2266,7 +2266,6 @@ async def render_game_message(edit=True):
 # ======================
 # شروع بازی و نوبت اول
 # ======================
-
 @dp.callback_query_handler(lambda c: c.data == "start_play")
 async def start_play(callback: types.CallbackQuery):
     global game_running, lobby_active, turn_order, current_turn_index, game_message_id
@@ -2361,31 +2360,26 @@ async def choose_head(callback: types.CallbackQuery):
 
     text = "🔧 روش انتخاب سر صحبت را انتخاب کنید:"
 
+    msg_id = game_message_id or callback.message.message_id
     try:
-        # تلاش برای ویرایش پیام قبلی
         await bot.edit_message_text(
-            text,
-            chat_id=group_chat_id,
-            message_id=game_message_id,
-            reply_markup=kb,
-            parse_mode="HTML"
+            text, chat_id=group_chat_id, message_id=msg_id, reply_markup=kb, parse_mode="HTML"
         )
+        game_message_id = msg_id
     except Exception as e:
-        logging.warning(f"⚠️ خطا در نمایش منو: {e}")
-        # اگر پیام قبلی قابل ویرایش نبود → پیام جدید بفرست
+        logging.warning(f"⚠️ choose_head edit failed: {e}")
         msg = await bot.send_message(group_chat_id, text, reply_markup=kb)
-        game_message_id = msg.message_id  # بروزرسانی آیدی پیام جدید
+        game_message_id = msg.message_id
 
     await callback.answer()
 
 #=======================================
 # انتخاب خودکار → نمایش لیست صندلی‌ها با دکمه برای انتخاب
 #=======================================
-
 @dp.callback_query_handler(lambda c: c.data == "speaker_auto")
 async def speaker_auto(callback: types.CallbackQuery):
     import random
-    global current_speaker, turn_order, current_turn_index
+    global current_speaker, turn_order, current_turn_index, game_message_id
 
     if callback.from_user.id != moderator_id:
         await callback.answer("❌ فقط گرداننده می‌تواند انتخاب کند.", show_alert=True)
@@ -2398,39 +2392,44 @@ async def speaker_auto(callback: types.CallbackQuery):
     seats_list = sorted(player_slots.keys())
     current_speaker = random.choice(seats_list)
     current_turn_index = seats_list.index(current_speaker)
-
-    # درست‌کردن ترتیب نوبت‌ها: همه از سر صحبت شروع بشن
     turn_order = seats_list[current_turn_index:] + seats_list[:current_turn_index]
 
-    # اطمینان از اینکه سر صحبت در اول لیست هست
+    # اطمینان از اینکه سر صحبت اول لیست باشد
     if current_speaker in turn_order:
         turn_order.remove(current_speaker)
     turn_order.insert(0, current_speaker)
 
-    await callback.answer(f"✅ صندلی {current_speaker} به صورت رندوم سر صحبت شد.")
+    await callback.answer(f"✅ صندلی {current_speaker} به صورت تصادفی سر صحبت شد.")
 
-    # نمایش لیست بازیکنان بر اساس نوبت صحبت
-    await send_turn_order_list()
+    # نمایش نوبت‌ها (اختیاری، اگر تابع داری)
+    try:
+        await send_turn_order_list()
+    except Exception as e:
+        logging.warning(f"⚠️ send_turn_order_list failed: {e}")
 
-    # بازگرداندن منوی بازی (انتخاب سر صحبت + شروع دور)
+    # ساخت منوی اصلی
     kb = InlineKeyboardMarkup(row_width=1)
     kb.add(InlineKeyboardButton("👑 انتخاب سر صحبت", callback_data="choose_head"))
     kb.add(InlineKeyboardButton("▶ شروع دور", callback_data="start_round"))
-    
-    if challenge_active:
-        kb.add(InlineKeyboardButton("⚔ چالش روشن", callback_data="challenge_toggle"))
-    else:
-        kb.add(InlineKeyboardButton("⚔ چالش خاموش", callback_data="challenge_toggle"))
-
-    try:
-        await bot.edit_message_reply_markup(
-            chat_id=group_chat_id,
-            message_id=game_message_id,
-            reply_markup=kb
+    kb.add(
+        InlineKeyboardButton(
+            "⚔ چالش روشن" if challenge_active else "⚔ چالش خاموش",
+            callback_data="challenge_toggle"
         )
-    except Exception:
-        pass
+    )
 
+    text = f"🎯 سر صحبت انتخاب شد (صندلی {current_speaker}).\nبرای شروع دور، دکمه‌ی «▶ شروع دور» را بزنید."
+
+    msg_id = game_message_id or callback.message.message_id
+    try:
+        await bot.edit_message_text(
+            text, chat_id=group_chat_id, message_id=msg_id, reply_markup=kb
+        )
+        game_message_id = msg_id
+    except Exception as e:
+        logging.warning(f"⚠️ speaker_auto edit failed: {e}")
+        msg = await bot.send_message(group_chat_id, text, reply_markup=kb)
+        game_message_id = msg.message_id
 
 
 
@@ -2438,9 +2437,10 @@ async def speaker_auto(callback: types.CallbackQuery):
 #=======================================
 # انتخاب دستی → نمایش لیست صندلی‌ها با دکمه برای انتخاب
 #=======================================
-
 @dp.callback_query_handler(lambda c: c.data == "speaker_manual")
 async def speaker_manual(callback: types.CallbackQuery):
+    global game_message_id
+
     if callback.from_user.id != moderator_id:
         await callback.answer("❌ فقط گرداننده می‌تواند انتخاب کند.", show_alert=True)
         return
@@ -2454,15 +2454,18 @@ async def speaker_manual(callback: types.CallbackQuery):
     for seat, (uid, name) in sorted(seats.items()):
         kb.add(InlineKeyboardButton(f"{seat}. {html.escape(name)}", callback_data=f"head_set_{seat}"))
 
+    text = "✋ یکی از بازیکنان را برای سر صحبت انتخاب کنید:"
+
+    msg_id = game_message_id or callback.message.message_id
     try:
-        await bot.edit_message_reply_markup(chat_id=group_chat_id, message_id=game_message_id, reply_markup=kb)
-    except Exception:
-        # اگر اصلا ویرایش نشد، ارسال پیام جدید با همین کیبورد
-        try:
-            msg = await bot.send_message(group_chat_id, "✋ یکی از بازیکنان را انتخاب کنید:", reply_markup=kb)
-            game_message_id = msg.message_id
-        except:
-            pass
+        await bot.edit_message_text(
+            text, chat_id=group_chat_id, message_id=msg_id, reply_markup=kb, parse_mode="HTML"
+        )
+        game_message_id = msg_id
+    except Exception as e:
+        logging.warning(f"⚠️ speaker_manual edit failed: {e}")
+        msg = await bot.send_message(group_chat_id, text, reply_markup=kb)
+        game_message_id = msg.message_id
 
     await callback.answer()
 
@@ -2758,37 +2761,40 @@ async def start_night(callback: types.CallbackQuery):
 #===========================
 @dp.callback_query_handler(lambda c: c.data == "start_new_day")
 async def start_new_day(callback: types.CallbackQuery):
+    global game_message_id
+
     if callback.from_user.id != moderator_id:
         await callback.answer("❌ فقط گرداننده می‌تواند روز جدید را شروع کند.", show_alert=True)
         return
 
-    # ریست تمام داده‌های دور قبلی
+    # ریست داده‌های دور قبلی
     reset_round_data()
 
-    # دکمه‌ها
-    keyboard = InlineKeyboardMarkup()
-
-    keyboard.add(
-        InlineKeyboardButton("🗣 انتخاب سر صحبت", callback_data="choose_head"),
+    # ساخت کیبورد
+    kb = InlineKeyboardMarkup()
+    kb.add(InlineKeyboardButton("🗣 انتخاب سر صحبت", callback_data="choose_head"))
+    kb.add(
+        InlineKeyboardButton(
+            "⚔ چالش روشن" if challenge_active else "⚔ چالش خاموش",
+            callback_data="challenge_toggle"
+        )
     )
+    kb.add(InlineKeyboardButton("▶️ شروع دور", callback_data="start_turn"))
 
-    # دکمه وضعیت چالش
-    if challenge_active:
-        keyboard.add(InlineKeyboardButton("⚔ چالش روشن", callback_data="challenge_toggle"))
-    else:
-        keyboard.add(InlineKeyboardButton("⚔ چالش خاموش", callback_data="challenge_toggle"))
+    text = "🌞 روز جدید شروع شد!\n\nسر صحبت را انتخاب کنید:"
 
-    keyboard.add(
-        InlineKeyboardButton("▶️ شروع دور", callback_data="start_turn")
-    )
+    msg_id = game_message_id or callback.message.message_id
+    try:
+        await bot.edit_message_text(
+            text, chat_id=group_chat_id, message_id=msg_id, reply_markup=kb
+        )
+        game_message_id = msg_id
+    except Exception as e:
+        logging.warning(f"⚠️ start_new_day edit failed: {e}")
+        msg = await bot.send_message(group_chat_id, text, reply_markup=kb)
+        game_message_id = msg.message_id
 
-
-    # ویرایش پیام فعلی
-    await callback.message.edit_text("🌞 روز جدید شروع شد! سر صحبت را انتخاب کنید:", reply_markup=keyboard)
     await callback.answer()
-
-
-
 
 #=======================
 # درخواست چالش
