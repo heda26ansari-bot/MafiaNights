@@ -77,6 +77,7 @@ waiting_message_id = None
 waiting_list = []     # لیست انتظار جایگزین
 substitute_list = {}  # لیست جایگزین‌ها بر اساس گروه
 extra_turns = []  # لیست بازیکن‌هایی که باید بعد از پایان دور یک ترن اضافه بگیرن
+last_next_time = 0
 
 #=======================
 # داده های ریست در شروع روز
@@ -281,7 +282,7 @@ async def send_turn_order_list():
 # -----------------------------
 # اضافه شدن به لیست جایگزین
 # -----------------------------
-@dp.message_handler(lambda m: m.text and "جایگزین" in m.text)
+@dp.message_handler(lambda m: m.text and m.text.strip().lower() in ["جایگزین", "/sub"])
 async def add_to_substitute_list(message: types.Message):
     global substitute_list, group_chat_id
 
@@ -292,7 +293,7 @@ async def add_to_substitute_list(message: types.Message):
     user_id = message.from_user.id
     user_name = message.from_user.full_name
 
-    # مطمئن میشیم substitute_list ساختار درست داشته باشه
+    # اطمینان از وجود ساختار گروه
     if group_chat_id not in substitute_list:
         substitute_list[group_chat_id] = {}
 
@@ -301,13 +302,13 @@ async def add_to_substitute_list(message: types.Message):
         await message.reply("ℹ️ شما قبلاً در لیست جایگزین هستید.")
         return
 
-    # ذخیره با ساختار درست
+    # افزودن کاربر جدید به لیست جایگزین
     substitute_list[group_chat_id][user_id] = {
         "id": user_id,
         "name": user_name
     }
 
-    await message.reply(f"✅ شما به لیست جایگزین اضافه شدید: {user_name}")
+    await message.reply(f"✅ {user_name} به لیست جایگزین اضافه شد.")
 
 
 # =========================
@@ -1159,7 +1160,7 @@ async def distribute_roles_callback(callback: types.CallbackQuery):
     kb.add(InlineKeyboardButton("⚔ چالش روشن" if challenge_active else "⚔ چالش خاموش",
                                 callback_data="challenge_toggle"))
 
-    # ویرایش یا ارسال پیام بازی
+    # ویرایش یا ارسال پیام بازی در گروه
     try:
         if lobby_message_id:
             msg = await bot.edit_message_text(
@@ -1178,49 +1179,30 @@ async def distribute_roles_callback(callback: types.CallbackQuery):
     game_running = True
     await callback.answer("✅ نقش‌ها پخش شد!")
 
+    # 💠 ارسال لیست نقش‌ها به گرداننده (مثل resend_roles)
+    try:
+        fancy_text = "༄\n    Mafia Nights\n\n"
+        fancy_text += "⏱ Time : 21:00\n"
+        fancy_text += f"📆 Date : {get_jalali_today()}\n"
+        fancy_text += f"🗓 Scenario : {selected_scenario}\n"
+        fancy_text += f"👮‍♂ God : {players.get(moderator_id, '❓')}\n\n"
+        fancy_text += " ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ \n"
+        fancy_text += "          لیست نقش‌ها\n"
+        fancy_text += "◤◢◣◥◤◢◣◥◤◢◣◥\n\n"
 
+        for seat in sorted(player_slots.keys()):
+            uid = player_slots[seat]
+            role = last_role_map.get(uid, "❓")
+            name = players.get(uid, "❓")
+            mention = f"<a href='tg://user?id={uid}'><b>{html.escape(name)}</b></a>"
+            fancy_text += f"\u200E{seat:02d} {mention} — {html.escape(role)}\n"
 
+        fancy_text += "\n◤◢◣◥◤◢◣◥◤◢◣◥\n\n༄"
 
-async def distribute_roles():
-    """
-    نقش‌ها را به پیوی بازیکنان می‌فرستد و mapping از user_id -> role برمی‌گرداند.
-    ترتیب اختصاص نقش: اگر صندلی رزرو شده باشد بر اساس شماره صندلی، در غیر اینصورت بر اساس insertion-order players.
-    """
-    if not selected_scenario:
-        raise ValueError("سناریو انتخاب نشده")
+        await bot.send_message(moderator_id, fancy_text, parse_mode="HTML")
+    except Exception as e:
+        logging.warning("⚠️ ارسال لیست نقش‌ها به گرداننده شکست خورد: %s", e)
 
-    roles_template = scenarios[selected_scenario]["roles"]
-
-    # ترتیب بازیکنان: بر اساس صندلی اگر موجود باشد، وگرنه بر اساس players.keys()
-    if player_slots:
-        player_ids = [player_slots[s] for s in sorted(player_slots.keys())]
-    else:
-        player_ids = list(players.keys())
-
-    # آماده‌سازی لیست نقش‌ها مطابق تعداد بازیکنان
-    roles = list(roles_template)  # کپی
-    if len(player_ids) > len(roles):
-        # اگر نیاز به نقش بیشتر هست، بقیه را "شهروند" قرار می‌دهیم
-        roles += ["شهروند"] * (len(player_ids) - len(roles))
-    roles = roles[:len(player_ids)]  # اگر نقش بیشتر از بازیکن بود کوتاه می‌کنیم
-
-    random.shuffle(roles)
-
-    mapping = {}
-    for pid, role in zip(player_ids, roles):
-        mapping[pid] = role
-        try:
-            await bot.send_message(pid, f"🎭 نقش شما: <b>{html.escape(str(role))}</b>", parse_mode="HTML")
-        except Exception as e:
-            # به گرداننده اطلاع بده که ارسال به یکی از بازیکنان شکست خورد
-            logging.warning("⚠️ ارسال نقش به %s شکست خورد: %s", pid, e)
-            if moderator_id:
-                try:
-                    await bot.send_message(moderator_id, f"⚠️ نمی‌توانم نقش را به {players.get(pid, pid)} ارسال کنم.")
-                except:
-                    pass
-
-    return mapping
 
 #==================
 
@@ -1911,11 +1893,6 @@ async def update_lobby():
                 InlineKeyboardButton("❌ خروج از بازی", callback_data="leave_game"),
             )
 
-        # ✅ نمایش لیست رزرو
-    if waiting_list:
-        text += "\n\n📋 لیست رزرو:\n"
-        for i, w in enumerate(waiting_list, start=1):
-            text += f"{i}. {w['name']}\n"
             
     # 🎭 پخش نقش
     if selected_scenario and moderator_id:
@@ -2684,6 +2661,16 @@ async def countdown(seat, duration, message_id, is_challenge=False):
 async def next_turn(callback: types.CallbackQuery):
     global current_turn_index, challenge_mode
     global paused_main_player, paused_main_duration, post_challenge_advance
+    global last_next_time
+
+    import time
+    now = time.time()
+
+    # ضد اسپم نکست — اگر کمتر از ۳ ثانیه از آخرین اجرا گذشته باشه، نادیده بگیر
+    if now - last_next_time < 3:
+        await callback.answer("⏳ لطفاً چند ثانیه صبر کنید...", show_alert=True)
+        return
+    last_next_time = now
 
     try:
         seat = int(callback.data.split("_", 1)[1])
@@ -2696,7 +2683,7 @@ async def next_turn(callback: types.CallbackQuery):
         await callback.answer("❌ فقط بازیکن مربوطه یا گرداننده می‌تواند نوبت را پایان دهد.", show_alert=True)
         return
 
-    # لغو تایمر
+    # لغو تایمر اگر فعال است
     if turn_timer_task and not turn_timer_task.done():
         turn_timer_task.cancel()
 
