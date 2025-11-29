@@ -78,6 +78,8 @@ waiting_list = []     # لیست انتظار جایگزین
 substitute_list = {}  # لیست جایگزین‌ها بر اساس گروه
 extra_turns = []  # لیست بازیکن‌هایی که باید بعد از پایان دور یک ترن اضافه بگیرن
 last_next_time = 0
+next_by_players_enabled = True
+next_by_moderator_enabled = True
 
 #=======================
 # داده های ریست در شروع روز
@@ -599,8 +601,21 @@ def manage_game_keyboard(group_id: int):
     kb.add(InlineKeyboardButton("🔇 سکوت بازیکن", callback_data="mute_player"))     # ➕ سکوت
     kb.add(InlineKeyboardButton("🔊 حذف سکوت", callback_data="unmute_player"))     # ➕ حذف سکوت
     kb.add(InlineKeyboardButton("⚔ وضعیت چالش", callback_data="challenge_status"))
+    kb.add(
+        InlineKeyboardButton(
+            f"⏭ نکست بازیکن: {'فعال' if next_by_players_enabled else 'غیرفعال'}",
+            callback_data="toggle_next_player_pm"
+        )
+    )
+    kb.add(
+        InlineKeyboardButton(
+            f"⏭ نکست گرداننده: {'فعال' if next_by_moderator_enabled else 'غیرفعال'}",
+            callback_data="toggle_next_moderator_pm"
+        )
+    )
     kb.add(InlineKeyboardButton("🚫 لغو بازی", callback_data=f"cancel_{group_id}"))
     kb.add(InlineKeyboardButton("⬅️ بازگشت", callback_data="back_main"))
+
     return kb
 
 
@@ -758,6 +773,68 @@ async def show_roles_list(user_id: int):
         await bot.send_message(user_id, text, parse_mode="HTML")
     except Exception as e:
         logging.exception("⚠️ خطا در ارسال لیست نقش‌ها به گرداننده")
+
+# =========================
+# وضعیت نکست
+# =========================
+@dp.callback_query_handler(lambda c: c.data == "toggle_next_player_pm")
+async def toggle_next_player_pm(callback: types.CallbackQuery):
+    global next_by_players_enabled
+
+    if callback.message.chat.type != "private":
+        return
+
+    if callback.from_user.id != moderator_id:
+        await callback.answer("این بخش فقط مخصوص گرداننده است.", show_alert=True)
+        return
+
+    next_by_players_enabled = not next_by_players_enabled
+
+    await callback.answer("✔️ تنظیمات ذخیره شد")
+    await update_pm_panel(callback.message)
+
+
+@dp.callback_query_handler(lambda c: c.data == "toggle_next_moderator_pm")
+async def toggle_next_moderator_pm(callback: types.CallbackQuery):
+    global next_by_moderator_enabled
+
+    if callback.message.chat.type != "private":
+        return
+
+    if callback.from_user.id != moderator_id:
+        await callback.answer("این بخش فقط مخصوص گرداننده است.", show_alert=True)
+        return
+
+    next_by_moderator_enabled = not next_by_moderator_enabled
+
+    await callback.answer("✔️ تنظیمات ذخیره شد")
+    await update_pm_panel(callback.message)
+
+async def update_pm_panel(msg):
+    kb = InlineKeyboardMarkup()
+
+    kb.add(
+        InlineKeyboardButton(
+            f"⏭ نکست بازیکن: {'فعال' if next_by_players_enabled else 'غیرفعال'}",
+            callback_data="toggle_next_player_pm"
+        )
+    )
+
+    kb.add(
+        InlineKeyboardButton(
+            f"⏭ نکست گرداننده: {'فعال' if next_by_moderator_enabled else 'غیرفعال'}",
+            callback_data="toggle_next_moderator_pm"
+        )
+    )
+
+    try:
+        await bot.edit_message_reply_markup(
+            chat_id=msg.chat.id,
+            message_id=msg.message_id,
+            reply_markup=kb
+        )
+    except:
+        pass
 
 
 #=======================
@@ -1329,15 +1406,7 @@ def join_menu():
         InlineKeyboardButton("❌ انصراف", callback_data="leave_game")
     )
     return kb
-# ======================
-# کیبورد پنل پیوی
-# ======================
-def main_panel_keyboard():
-    kb = InlineKeyboardMarkup(row_width=1)
-    kb.add(InlineKeyboardButton("🎮 مدیریت بازی", callback_data="manage_game"))
-    kb.add(InlineKeyboardButton("📜 مدیریت سناریو", callback_data="manage_scenarios"))
-    kb.add(InlineKeyboardButton("❓ راهنما", callback_data="help"))
-    return kb
+
 
 # -----------------------------
 # منوی مدیریت بازی
@@ -1350,6 +1419,19 @@ def manage_game_keyboard(group_id: int):
     kb.add(InlineKeyboardButton("🔄 جایگزین بازیکن", callback_data="replace_player"))
     kb.add(InlineKeyboardButton("🎂 تولد بازیکن", callback_data="player_birthday"))
     kb.add(InlineKeyboardButton("⚔ وضعیت چالش", callback_data="challenge_status"))
+    kb.add(
+        InlineKeyboardButton(
+            f"⏭ نکست بازیکن: {'فعال' if next_by_players_enabled else 'غیرفعال'}",
+            callback_data="toggle_next_player_pm"
+        )
+    )
+    kb.add(
+        InlineKeyboardButton(
+            f"⏭ نکست گرداننده: {'فعال' if next_by_moderator_enabled else 'غیرفعال'}",
+            callback_data="toggle_next_moderator_pm"
+        )
+    )
+
     kb.add(InlineKeyboardButton("⚙️ تنظیم گرداننده", callback_data="manage_moderator"))
     kb.add(InlineKeyboardButton("🚫 لغو بازی", callback_data=f"cancel_{group_id}"))
     kb.add(InlineKeyboardButton("⬅️ بازگشت", callback_data="back_main"))
@@ -2668,6 +2750,17 @@ async def next_turn(callback: types.CallbackQuery):
 
     import time
     now = time.time()
+
+    # اگر بازیکن نکست زده ولی غیرفعاله:
+    if callback.from_user.id != moderator_id and not next_by_players_enabled:
+        await callback.answer("⛔ نکست برای بازیکنان غیرفعال شده.", show_alert=True)
+        return
+
+    # اگر گرداننده نکست زده ولی غیرفعاله:
+    if callback.from_user.id == moderator_id and not next_by_moderator_enabled:
+        await callback.answer("⛔ نکست برای گرداننده غیرفعال شده.", show_alert=True)
+        return
+
 
     # ضد اسپم نکست — اگر کمتر از ۳ ثانیه از آخرین اجرا گذشته باشه، نادیده بگیر
     if now - last_next_time < 3:
