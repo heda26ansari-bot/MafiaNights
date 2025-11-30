@@ -19,6 +19,9 @@ class AddScenario(StatesGroup):
     waiting_for_roles = State()
     waiting_for_min_players = State()
 
+from mafia_extensions import MafiaAddons
+
+
 
 
 
@@ -32,6 +35,8 @@ if not API_TOKEN:
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=API_TOKEN, parse_mode="HTML")
 dp = Dispatcher(bot, storage=MemoryStorage())
+
+addons = MafiaAddons(bot)
 
 # فقط این گروه اجازه اجرای بازی داره
 #تست
@@ -584,6 +589,7 @@ def main_panel_keyboard():
     kb = InlineKeyboardMarkup(row_width=1)
     kb.add(InlineKeyboardButton("🎮 مدیریت بازی", callback_data="manage_game"))
     kb.add(InlineKeyboardButton("📜 مدیریت سناریو", callback_data="manage_scenarios"))
+    kb.add(InlineKeyboardButton("⚙ امکانات اضافه", callback_data="addons_menu"))
     kb.add(InlineKeyboardButton("❓ راهنما", callback_data="help"))
     return kb
 
@@ -1720,12 +1726,15 @@ async def start_cmd(message: types.Message):
         kb = InlineKeyboardMarkup(row_width=1)
         kb.add(InlineKeyboardButton("🛠 مدیریت بازی", callback_data="manage_game"))
         kb.add(InlineKeyboardButton("⚙ مدیریت سناریو", callback_data="manage_scenarios"))
-        
+        kb.add(InlineKeyboardButton("⚙ امکانات اضافه", callback_data="addons_menu"))
+
         
         # فقط مدیر ربات این دو دکمه را می‌بیند
         if message.from_user.id == moderator_id:
             kb.add(InlineKeyboardButton("🛠 مدیریت بازی", callback_data="manage_game"))
             kb.add(InlineKeyboardButton("⚙ مدیریت سناریو", callback_data="manage_scenarios"))
+            kb.add(InlineKeyboardButton("⚙ امکانات اضافه", callback_data="addons_menu"))
+
 
         kb.add(InlineKeyboardButton("📚 راهنما", callback_data="help"))
 
@@ -1805,18 +1814,26 @@ async def choose_moderator(callback: types.CallbackQuery):
     await callback.answer()
 
 
-
-
 @dp.callback_query_handler(lambda c: c.data.startswith("moderator_"))
 async def moderator_selected(callback: types.CallbackQuery):
     global moderator_id
     moderator_id = int(callback.data.replace("moderator_", ""))
+
+    # ⬅ اینجا ثبت افزونه
+    addons.register(
+        moderator_id=moderator_id,
+        group_id=group_chat_id
+    )
+
     await callback.message.edit_text(
         f"🎩 گرداننده انتخاب شد: {(await bot.get_chat_member(group_chat_id, moderator_id)).user.full_name}\n"
         f"حالا اعضا می‌توانند وارد بازی شوند یا انصراف دهند.",
         reply_markup=join_menu()
     )
     await callback.answer()
+
+
+
 
 # ======================
 # ورود و انصراف
@@ -3099,6 +3116,72 @@ async def challenge_choice(callback: types.CallbackQuery):
         await bot.send_message(group_chat_id, f"🚫 {challenger_name}   چالش نداد .")
 
     await callback.answer()
+    
+# ========================
+# نمایش منوی افزونه
+# ========================
+@dp.callback_query_handler(lambda c: c.data == "addons_menu")
+async def _(c):
+    await addons.open_addons_menu(c)
+
+# -------------------------
+# امنیت
+# -------------------------
+@dp.callback_query_handler(lambda c: c.data == "addons_security")
+async def _(c): 
+    await addons.menu_security(c)
+
+@dp.callback_query_handler(lambda c: c.data == "toggle_control_speech")
+async def _(c):
+    addons.toggle("security", "control_speech")
+    await addons.menu_security(c)
+
+@dp.callback_query_handler(lambda c: c.data == "toggle_delete_messages")
+async def _(c):
+    addons.toggle("security", "delete_out_of_turn")
+    await addons.menu_security(c)
+
+# -------------------------
+# نکست
+# -------------------------
+@dp.callback_query_handler(lambda c: c.data == "addons_next")
+async def _(c): 
+    await addons.menu_next(c)
+
+@dp.callback_query_handler(lambda c: c.data == "toggle_next_antispam")
+async def _(c):
+    addons.toggle("next", "anti_spam")
+    await addons.menu_next(c)
+
+# -------------------------
+# Auto Start
+# -------------------------
+@dp.callback_query_handler(lambda c: c.data == "addons_auto")
+async def _(c): 
+    await addons.menu_auto(c)
+
+@dp.callback_query_handler(lambda c: c.data == "toggle_autostart")
+async def _(c):
+    addons.toggle("auto_start", "enabled")
+    await addons.menu_auto(c)
+
+# -------------------------
+# رنگ‌بندی
+# -------------------------
+@dp.callback_query_handler(lambda c: c.data == "addons_color")
+async def _(c):
+    await addons.menu_color(c)
+
+@dp.callback_query_handler(lambda c: c.data == "toggle_color_primary")
+async def _(c):
+    addons.toggle("color", "primary")
+    await addons.menu_color(c)
+
+@dp.callback_query_handler(lambda c: c.data == "toggle_color_challenge")
+async def _(c):
+    addons.toggle("color", "challenge")
+    await addons.menu_color(c)
+
 
 
 # ======================
