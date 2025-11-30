@@ -119,6 +119,8 @@ class MafiaAddons:
             self.settings = self._all_settings[key]
         self._save_to_file()
 
+    
+
     # -------------------------
     # register: اتصال افزونه به گروه و گرداننده
     # -------------------------
@@ -153,6 +155,10 @@ class MafiaAddons:
             # بازنویسی در فایل (در صورت نبود)
             self._all_settings[self._group_key(group_id)] = self.settings
             self._save_to_file()
+
+            async def _open_menu_handler(self, callback: types.CallbackQuery):
+        await self.open_addons_menu(callback)
+
         except Exception as e:
             logging.exception("%s: خطا در register افزونه: %s", LOG_TAG, e)
 
