@@ -1,7 +1,7 @@
 # mafia_addons.py
 # --------------------------------------------------------
 # افزونه امکانات اضافه + ذخیره تنظیمات در فایل JSON دائمی
-# سازگار با main.py موجود (Aiogram)
+# نسخهٔ کامل، با هندلرها و API مورد نیاز main.py
 # --------------------------------------------------------
 
 import json
@@ -14,7 +14,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 SETTINGS_FILE = "addons_settings.json"
 LOG_TAG = "MafiaAddons"
 
-# تنظیمات پیش‌فرض (برای هر گروه)
+# تنظیمات پیش‌فرض برای هر گروه
 DEFAULT_GROUP_SETTINGS = {
     "security": {
         "control_speech": True,
@@ -22,7 +22,6 @@ DEFAULT_GROUP_SETTINGS = {
     },
     "next": {
         "anti_spam": True,
-        # compatibility keys
         "allow_players_next": True,
         "allow_moderator_next": True
     },
@@ -32,7 +31,6 @@ DEFAULT_GROUP_SETTINGS = {
     "color": {
         "primary": True,
         "challenge": True,
-        # optional prefix string shown before timer messages
         "timer_prefix": ""
     }
 }
@@ -40,25 +38,23 @@ DEFAULT_GROUP_SETTINGS = {
 
 class MafiaAddons:
     """
-    کلاس مدیریت افزونه‌ها، نگهداری تنظیمات و منوهای پیوی
+    مدیریت افزونه‌ها (تنظیمات گروهی) برای ربات مافیا.
     استفاده:
       addons = MafiaAddons(bot)
-      addons.setup_handlers(dp)   # فقط یک‌بار در startup
-      addons.register(moderator_id=..., group_id=...)  # وقتی یک گرداننده در لابی انتخاب می‌شود
-    بعد از register، addons.settings به تنظیمات گروه جاری اشاره می‌کند.
+      addons.setup_handlers(dp)    # فقط یکبار در startup
+      addons.register(moderator_id=..., group_id=...)  # وقتی گرداننده انتخاب میشود
     """
 
     def __init__(self, bot):
         self.bot = bot
-        # بار اولیه تنظیمات: dict که هر کلید = str(group_id) و مقدار = dict تنظیمات آن گروه
+        # کل تنظیمات برای همه گروه‌ها: کلید = str(group_id)
         self._all_settings = {}
-        # در register بعدی مقداردهی خواهد شد
+        # حالِ جاری
         self.group_id = None
         self.moderator_id = None
-        # setting view برای گروه جاری (برای سازگاری با کد فعلی که addons.settings.get(...) استفاده می‌کند)
+        # view جاری که main.py انتظار دارد (addons.settings)
         self.settings = copy.deepcopy(DEFAULT_GROUP_SETTINGS)
-
-        # لود از فایل (اگر موجود باشد)
+        # بارگذاری از فایل در ابتدای ساخت
         self._load_from_file()
 
     # -------------------------
@@ -66,17 +62,15 @@ class MafiaAddons:
     # -------------------------
     def _load_from_file(self):
         if not os.path.exists(SETTINGS_FILE):
-            # ساختار پایه با یک کلید default (اگر لازم باشه)
             self._all_settings = {}
             return
-
         try:
             with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 if isinstance(data, dict):
                     self._all_settings = data
                 else:
-                    logging.warning("%s: تنظیمات فایل نامعتبر است؛ ساختار جدید ساخته شد.", LOG_TAG)
+                    logging.warning("%s: فایل تنظیمات نامعتبر است؛ ساختار جدید ساخته شد.", LOG_TAG)
                     self._all_settings = {}
         except Exception as e:
             logging.exception("%s: خطا در خواندن فایل تنظیمات: %s", LOG_TAG, e)
@@ -90,7 +84,7 @@ class MafiaAddons:
             logging.exception("%s: خطا در نوشتن فایل تنظیمات: %s", LOG_TAG, e)
 
     # -------------------------
-    # کمک‌ها: گرفتن/تنظیم تنظیمات گروه
+    # کمک‌ها: key conversion / defaults
     # -------------------------
     def _group_key(self, group_id):
         return str(group_id)
@@ -99,14 +93,12 @@ class MafiaAddons:
         key = self._group_key(group_id)
         s = self._all_settings.get(key)
         if s is None:
-            # return deep copy of default so modification doesn't alter DEFAULT_GROUP_SETTINGS
             s = copy.deepcopy(DEFAULT_GROUP_SETTINGS)
-            # ensure compatibility keys exist
-            if "next" not in s:
-                s["next"] = {"anti_spam": True, "allow_players_next": True, "allow_moderator_next": True}
-            if "security" not in s:
-                s["security"] = {"control_speech": True, "delete_out_of_turn": True}
-            # don't write auto into file immediately; will save on register/toggle
+            # ensure compatibility keys
+            s.setdefault("next", {"anti_spam": True, "allow_players_next": True, "allow_moderator_next": True})
+            s.setdefault("security", {"control_speech": True, "delete_out_of_turn": True})
+            s.setdefault("auto_start", {"enabled": False})
+            s.setdefault("color", {"primary": True, "challenge": True, "timer_prefix": ""})
             self._all_settings[key] = s
             self._save_to_file()
         return s
@@ -114,63 +106,46 @@ class MafiaAddons:
     def set_group_settings(self, group_id, settings_dict):
         key = self._group_key(group_id)
         self._all_settings[key] = settings_dict
-        # update active settings if group matches
         if self.group_id and self._group_key(self.group_id) == key:
-            self.settings = self._all_settings[key]
+            self.settings = settings_dict
         self._save_to_file()
-
-    
 
     # -------------------------
     # register: اتصال افزونه به گروه و گرداننده
     # -------------------------
     def register(self, *, moderator_id, group_id):
-        """
-        وقتی گرداننده در لابی انتخاب می‌شود، main.py این را صدا می‌زند.
-        این متد تنظیمات گروه را بارگذاری می‌کند و self.settings را به آن اشاره می‌دهد.
-        """
         try:
             self.moderator_id = moderator_id
             self.group_id = group_id
             self.settings = self.get_group_settings(group_id)
-            # ضمانت وجود کلیدهای مهم (برای سازگاری)
-            # next.* keys
+            # ضمانت وجود کلیدهای مهم
             self.settings.setdefault("next", {})
             self.settings["next"].setdefault("anti_spam", True)
             self.settings["next"].setdefault("allow_players_next", True)
             self.settings["next"].setdefault("allow_moderator_next", True)
-            # security keys
+
             self.settings.setdefault("security", {})
             self.settings["security"].setdefault("control_speech", True)
             self.settings["security"].setdefault("delete_out_of_turn", True)
-            # auto_start
+
             self.settings.setdefault("auto_start", {})
             self.settings["auto_start"].setdefault("enabled", False)
-            # color
+
             self.settings.setdefault("color", {})
             self.settings["color"].setdefault("primary", True)
             self.settings["color"].setdefault("challenge", True)
             self.settings["color"].setdefault("timer_prefix", "")
 
-            # بازنویسی در فایل (در صورت نبود)
+            # persist (در صورت نبود در فایل)
             self._all_settings[self._group_key(group_id)] = self.settings
             self._save_to_file()
-
-            async def _open_menu_handler(self, callback: types.CallbackQuery):
-        await self.open_addons_menu(callback)
-
         except Exception as e:
             logging.exception("%s: خطا در register افزونه: %s", LOG_TAG, e)
 
     # -------------------------
-    # متد عمومی: setup_handlers
-    # - این متد را یک بار در startup فراخوانی کن (main.py)
+    # ثبت هندلرها در Dispatcher (فراخوانی فقط یک‌بار)
     # -------------------------
     def setup_handlers(self, dp):
-        """
-        ثبت هندلرهای callback query مورد نیاز افزونه در dispatcher.
-        فراخوانی فقط یک بار در زمان startup لازم است.
-        """
         # منوی اصلی افزونه
         dp.register_callback_query_handler(self._open_menu_handler, lambda c: c.data == "addons_menu")
 
@@ -188,30 +163,16 @@ class MafiaAddons:
         dp.register_callback_query_handler(self._toggle_color_primary, lambda c: c.data == "toggle_color_primary")
         dp.register_callback_query_handler(self._toggle_color_challenge, lambda c: c.data == "toggle_color_challenge")
 
-        # بازگشت / navigation
+        # navigation
         dp.register_callback_query_handler(self._back_to_addons_menu, lambda c: c.data == "panel_back")
-        dp.register_callback_query_handler(self._back_to_main, lambda c: c.data == "addons_menu")
+        # convenience alias
+        dp.register_callback_query_handler(self._back_to_main, lambda c: c.data == "addons_menu_back")
 
     # -------------------------
-    # منوها — wrapper برای استفاده در main
+    # منوها (public wrapper)
     # -------------------------
     async def open_addons_menu(self, callback: types.CallbackQuery):
-        """
-        فراخوانیِ منوی اصلی افزونه؛ اگر تنظیمات گروه لود نشده باشند،
-        از group_id استفاده می‌کند وقتی که register صدا زده شده باشد.
-        """
-        # اگر register نشده باشیم سعی کن از callback.chat.id استفاده کنی
-        if not self.group_id:
-            # اگر در پیوی اجرا می‌شود، باید moderator_id و group_id از قبل set شده باشد
-            # fallback: تلاش برای استفاده از پیام مرجع
-            try:
-                # اگر callback.message.chat.type == 'private' تلاش برای استفاده از moderator_id
-                if callback.message.chat.type == "private" and self.moderator_id:
-                    # group_id قبلاً باید register شده باشد، در غیر این صورت پیام به کاربر بده
-                    pass
-            except:
-                pass
-
+        # اگر group_id ست نیست، تلاش برای تعیین یا نمایش خطا
         kb = InlineKeyboardMarkup()
         kb.add(InlineKeyboardButton("🔐 امنیت بازی", callback_data="addons_security"))
         kb.add(InlineKeyboardButton("⏭ مدیریت نکست", callback_data="addons_next"))
@@ -234,10 +195,17 @@ class MafiaAddons:
                 pass
 
     # -------------------------
+    # internal handler aliases (باید وجود داشته باشند)
+    # -------------------------
+    async def _open_menu_handler(self, callback: types.CallbackQuery):
+        # فقط فراخوانی wrapper
+        await self.open_addons_menu(callback)
+
+    # -------------------------
     # منوی امنیت
     # -------------------------
     async def _open_security_menu(self, callback: types.CallbackQuery):
-        # اطمینان از این که تنظیمات برای گروه جاری وجود دارد
+        # بارگذاری تنظیمات گروهی (اگر register شده)
         if self.group_id:
             self.settings = self.get_group_settings(self.group_id)
 
@@ -346,25 +314,21 @@ class MafiaAddons:
                 pass
 
     # -------------------------
-    # توگل‌ها
+    # توگل‌ها (هر توگل فقط توسط گرداننده مجاز است)
     # -------------------------
     async def _toggle_control_speech(self, callback: types.CallbackQuery):
         if not self.group_id:
             await callback.answer("⚠️ ابتدا یک بازی/گروه ثبت شود.", show_alert=True)
             return
-
-        # فقط گرداننده اجازه دارد
         if callback.from_user.id != self.moderator_id:
             await callback.answer("⚠️ فقط گرداننده می‌تواند این تنظیمات را تغییر دهد.", show_alert=True)
             return
 
         self.settings['security']['control_speech'] = not self.settings['security'].get('control_speech', True)
-        # persist
         self._all_settings[self._group_key(self.group_id)] = self.settings
         self._save_to_file()
 
         await callback.answer("✔️ وضعیت ذخیره شد.")
-        # بازگشت به منو امنیت
         await self._open_security_menu(callback)
 
     async def _toggle_delete_messages(self, callback: types.CallbackQuery):
@@ -443,18 +407,16 @@ class MafiaAddons:
         await self._open_color_menu(callback)
 
     # -------------------------
-    # navigation / back
+    # navigation
     # -------------------------
     async def _back_to_addons_menu(self, callback: types.CallbackQuery):
-        # بازگردانی view و نمایش منوی اصلی افزونه
         await self.open_addons_menu(callback)
 
     async def _back_to_main(self, callback: types.CallbackQuery):
-        # بازگشت به منوی بالا (برای consistency)
         await self.open_addons_menu(callback)
 
     # -------------------------
-    # helpers : convenience برای main.py
+    # helpers برای main.py
     # -------------------------
     def is_control_speech_enabled(self):
         return self.settings.get("security", {}).get("control_speech", True)
@@ -483,18 +445,11 @@ class MafiaAddons:
     def get_timer_prefix(self):
         return self.settings.get("color", {}).get("timer_prefix", "")
 
-    # -------------------------
-    # API کوچک برای main.py که لازم است
-    # -------------------------
     def ensure_defaults_for_group(self, group_id):
-        """
-        تضمین می‌کند که تنظیمات برای group_id وجود داشته باشد.
-        """
         key = self._group_key(group_id)
         if key not in self._all_settings:
             self._all_settings[key] = copy.deepcopy(DEFAULT_GROUP_SETTINGS)
             self._save_to_file()
 
     def export_current_settings(self):
-        """ برای دسترسی سریع در main.py می‌توانید از addons.settings استفاده کنید. """
         return self.settings
