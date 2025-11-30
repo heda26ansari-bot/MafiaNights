@@ -283,6 +283,51 @@ async def send_turn_order_list():
     text += "\n◤◢◣◥◤◢◣◥◤◢◣◥"
     await bot.send_message(group_chat_id, text, parse_mode="HTML")
 
+# ==============================
+# مخصوص حذف پیام اضافه
+# ==============================
+@dp.message_handler(content_types=types.ContentTypes.TEXT)
+async def handle_out_of_turn_messages(message: types.Message):
+    global current_speaker, current_turn_index
+
+    # حذف برای گروه غیر فعال
+    if message.chat.id != group_chat_id:
+        return
+
+    # اگر امکانات امنیتی غیرفعال باشد → پیام حذف نشود
+    try:
+        if not addons.is_control_speech_enabled():
+            return
+        if not addons.is_delete_out_of_turn_enabled():
+            return
+    except:
+        return
+
+    # اجازه پیام سیستم/گرداننده
+    if message.from_user.id == moderator_id:
+        return
+
+    # بازیکنان خارج از بازی حذف نشوند؟
+    if message.from_user.id not in players:
+        return  # چون بازیکن نیست، تهدیدی نیست
+
+    # نوبت چه کسی است؟
+    try:
+        seat = current_speaker
+        if seat is None:
+            return
+        allowed_user_id = player_slots.get(seat)
+    except:
+        return
+
+    # اگر فرستندهٔ پیام صاحب نوبت نیست → حذف
+    if message.from_user.id != allowed_user_id:
+        try:
+            await bot.delete_message(message.chat.id, message.message_id)
+        except:
+            pass
+
+
 # -----------------------------
 # اضافه شدن به لیست جایگزین
 # -----------------------------
