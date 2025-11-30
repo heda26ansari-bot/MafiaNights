@@ -36,6 +36,7 @@ bot = Bot(token=API_TOKEN, parse_mode="HTML")
 dp = Dispatcher(bot, storage=MemoryStorage())
 
 addons = MafiaAddons(bot)
+addons.setup_handlers(dp)
 
 # فقط این گروه اجازه اجرای بازی داره
 #تست
