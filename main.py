@@ -2853,6 +2853,7 @@ async def next_turn(callback: types.CallbackQuery):
     global current_turn_index, challenge_mode
     global paused_main_player, paused_main_duration, post_challenge_advance
     global last_next_time
+    global next_by_players_enabled, next_by_moderator_enabled
 
     import time
     now = time.time()
@@ -2868,11 +2869,11 @@ async def next_turn(callback: types.CallbackQuery):
         return
 
     if addons.settings.get("next", {}).get("anti_spam", True):
-    global last_next_time
-    if now - last_next_time < 3:
-        await callback.answer("⏳ لطفاً چند ثانیه صبر کنید...", show_alert=True)
-        return
-    last_next_time = now
+        global last_next_time
+        if now - last_next_time < 3:
+            await callback.answer("⏳ لطفاً چند ثانیه صبر کنید...", show_alert=True)
+            return
+        last_next_time = now
 
 
     try:
