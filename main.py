@@ -24,10 +24,6 @@ now = time.time()
 
 from mafia_addons import MafiaAddons
 
-
-
-
-
 # ======================
 # تنظیمات ربات
 # ======================
@@ -222,8 +218,6 @@ async def add_scenario_min_players(message: types.Message, state: FSMContext):
 
     await state.finish()
 
-
-
 # حذف سناریو
 @dp.callback_query_handler(lambda c: c.data == "remove_scenario")
 async def remove_scenario(callback: types.CallbackQuery):
@@ -288,7 +282,6 @@ async def send_turn_order_list():
     text += "\n◤◢◣◥◤◢◣◥◤◢◣◥"
     await bot.send_message(group_chat_id, text, parse_mode="HTML")
 
-
 # -----------------------------
 # اضافه شدن به لیست جایگزین
 # -----------------------------
@@ -320,7 +313,6 @@ async def add_to_substitute_list(message: types.Message):
 
     await message.reply(f"✅ {user_name} به لیست جایگزین اضافه شد.")
 
-
 # =========================
 # صندلی من
 # =========================
@@ -336,7 +328,6 @@ async def my_seat_handler(message: types.Message):
         await message.reply("⚠️ شما در بازی ثبت نشده‌اید یا هنوز صندلی به شما اختصاص نیافته.")
     else:
         await message.reply(f"🔹 شما در صندلی شماره {seat} قرار دارید.")
-
 
 # =========================
 # لیست صندلی
@@ -362,7 +353,6 @@ async def seats_list_handler(message: types.Message):
 
     text = "📋 لیست صندلی‌ها:\n\n" + "\n".join(text_lines)
     await message.reply(text)
-
 
 # =========================
 # نقش من (فقط در پیوی)
@@ -433,7 +423,6 @@ async def show_players_handler(message: types.Message):
 
     await message.reply(text)
 
-
 # =========================
 # وضعیت بازی
 # =========================
@@ -460,7 +449,6 @@ async def game_status_handler(message: types.Message):
     text += f"ترتیب نوبت: {len(turn_order) if globals().get('turn_order') else 0}\n"
 
     await message.reply(text)
-
 
 # =============================
 # خروج بازیکن (فقط در لابی)
@@ -498,8 +486,6 @@ async def leave_game(message: types.Message):
 
     await message.reply(f"🚪 بازیکن {html.escape(name)} از بازی خارج شد (صندلی {seat_to_remove}).")
 
-
-
 # =========================
 # راهنما / help (عمومی)
 # =========================
@@ -519,7 +505,6 @@ async def help_handler(message: types.Message):
         " - جایگزین / لغو جایگزین / لیست جایگزین (همانطور که قبلاً اضافه شده‌اند)\n"
     )
     await message.reply(help_text)
-
 
 # ======================
 # لیست بازیکنان
@@ -557,8 +542,6 @@ async def list_players_handler(callback: types.CallbackQuery):
 
     await callback.message.answer(text, parse_mode="HTML")
     await callback.answer()
-
-
 
 # ======================
 # کیبوردها
@@ -627,7 +610,6 @@ def manage_game_keyboard(group_id: int):
 
     return kb
 
-
 # =========================
 # توابع کمکی
 # =========================
@@ -649,7 +631,6 @@ async def update_group_admins(bot, chat_id):
     admins = await bot.get_chat_administrators(chat_id)
     group_admins = [admin.user.id for admin in admins]
     
-
 # ======================
 # مدیریت بازی در پیوی
 # ======================
@@ -845,7 +826,6 @@ async def update_pm_panel(msg):
     except:
         pass
 
-
 #=======================
 # ارسال نقش ها
 #=======================
@@ -920,8 +900,6 @@ async def resend_roles_handler(callback: types.CallbackQuery):
 
     await callback.answer(f"✅ نقش‌ها به {sent} بازیکن ارسال شدند.")
 
-
-
 # -----------------------------
 # جایگزینی بازیکن - نمایش لیست جایگزین‌ها
 # -----------------------------
@@ -945,7 +923,6 @@ async def replace_player_list_handler(callback: types.CallbackQuery):
     await callback.message.answer("👥 لیست جایگزین‌ها:", reply_markup=kb)
     await callback.answer()
 
-
 # -----------------------------
 # انتخاب بازیکن اصلی برای جایگزینی
 # -----------------------------
@@ -967,7 +944,6 @@ async def choose_substitute_for_replace(callback: types.CallbackQuery):
 
     await callback.message.answer("👤 بازیکن جایگزین، بازیکن فعلی را انتخاب کنید:", reply_markup=kb)
     await callback.answer()
-
 
 # -----------------------------
 # انجام جایگزینی
@@ -1078,8 +1054,6 @@ async def remove_player_confirm(callback: types.CallbackQuery):
     await callback.message.answer(f"✅ بازیکن با آی‌دی {uid} حذف شد و به لیست خارج‌شده‌ها منتقل شد.")
     await callback.answer()
 
-
-
 #=======================
 # تولد بازیکن
 #=======================
@@ -1126,8 +1100,6 @@ async def birthday_player_confirm(callback: types.CallbackQuery):
     await callback.message.answer(f"✅ بازیکن {html.escape(name)} با صندلی {seat} بازگردانده شد.")
     await callback.answer()
 
-
-
 #=======================
 # لغو بازی
 #=======================
@@ -1164,7 +1136,6 @@ async def cancel_game_handler(callback: types.CallbackQuery):
     await callback.message.answer("✅ بازی لغو شد و همه داده‌ها ریست شدند.")
     await callback.answer()
 
-
 #========================
 # 
 #========================
@@ -1182,10 +1153,6 @@ def register_game_panel_handlers(dp: Dispatcher):
     dp.register_callback_query_handler(birthday_player_handler, lambda c: c.data == "player_birthday")
     dp.register_callback_query_handler(birthday_player_confirm, lambda c: c.data.startswith("revive_"))
     
-
-
-
-
 @dp.callback_query_handler(lambda c: c.data == "help")
 async def show_help(callback: types.CallbackQuery):
     try:
@@ -1344,7 +1311,6 @@ async def text_commands_handler(message: types.Message):
             pass
 
         return []
-
 
     # -------------------
     # دستور "تگ لیست" → فقط بازیکنان حاضر در بازی
@@ -1522,26 +1488,52 @@ async def handle_slot(callback: types.CallbackQuery):
     
 def turn_keyboard(seat, is_challenge=False):
     kb = InlineKeyboardMarkup(row_width=2)
+
+    # =============================
+    # مدیریت دکمه نکست (بر اساس تنظیمات امنیتی)
+    # =============================
+    allow_player_next = addons.settings.get("next", {}).get("player_enabled", True)
+    allow_mod_next = addons.settings.get("next", {}).get("moderator_enabled", True)
+
+    # تشخیص اینکه این بازیکن اجازه نکست دارد یا نه
+    can_use_next = True
+    if not allow_player_next:
+        # اگر بازیکن بود و نکست بازیکن خاموش → دکمه حذف می‌شود
+        pass
+
+    # اگر فقط گرداننده حق نکست دارد → دکمه فقط برای او نمایش داده می‌شود
+    # (اما aiogram خودش در handler هم چک می‌کند → دو لایه امنیت)
     kb.add(InlineKeyboardButton("⏭ نکست", callback_data=f"next_{seat}"))
 
+    # =============================
+    # مدیریت چالش‌ها
+    # =============================
     if not is_challenge:
         if not challenge_active:
             return kb
+
         player_id = player_slots.get(seat)
         if player_id:
-            # فقط اگر این بازیکن قبلاً چالش داده (accept کرده) → دکمه حذف بشه
+
+            # اگر این بازیکن در حال چالش است → دکمه درخواست نمایش داده نشود
             if seat in active_challenger_seats:
                 return kb
 
-            # فقط اگر هنوز درخواست pending داره → دکمه غیرفعال بشه
-            already_challenged = any(
+            # اگر چالشی pending دارد → درخواست جدید نده
+            already_pending = any(
                 reqs.get(player_id) == "pending"
                 for reqs in challenge_requests.values()
             )
-            if not already_challenged:
-                kb.add(InlineKeyboardButton("⚔ درخواست چالش", callback_data=f"challenge_request_{seat}"))
+            if not already_pending:
+                kb.add(
+                    InlineKeyboardButton(
+                        "⚔ درخواست چالش",
+                        callback_data=f"challenge_request_{seat}"
+                    )
+                )
 
     return kb
+
 
 # =======================
 # تنظیم گرداننده
@@ -1671,9 +1663,6 @@ def register_send_roles_handler(dp):
         lambda c: c.data == "resend_roles"
     )
 
-
-
-
 #=======================
 # حذف بازیکن
 #=======================
@@ -1786,8 +1775,6 @@ async def start_game(callback: types.CallbackQuery):
 
     await callback.answer()
 
-
-
 # ======================
 # انتخاب سناریو و گرداننده
 # ======================
@@ -1835,35 +1822,33 @@ async def choose_moderator(callback: types.CallbackQuery):
 @dp.callback_query_handler(lambda c: c.data.startswith("moderator_"))
 async def moderator_selected(callback: types.CallbackQuery):
     global moderator_id
-    moderator_id = int(callback.data.replace("moderator_", ""))
     global next_by_players_enabled, next_by_moderator_enabled
-    next_by_players_enabled = addons.settings.get("next", {}).get("allow_players_next", next_by_players_enabled)
-    next_by_moderator_enabled = addons.settings.get("next", {}).get("allow_moderator_next", next_by_moderator_enabled)
 
+    moderator_id = int(callback.data.replace("moderator_", ""))
 
-    # ⬅ اینجا ثبت افزونه
+    # 1) ثبت افزونه (یعنی load شدن تنظیمات از فایل)
     addons.register(
         moderator_id=moderator_id,
         group_id=group_chat_id
     )
 
-    # همگام‌سازی پیش‌فرض با تنظیمات افزونه (در صورت نیاز)
-    next_by_players_enabled = addons.settings.get("next", {}).get("allow_players_next", True) \
-        if "allow_players_next" in addons.settings.get("next", {}) else next_by_players_enabled
+    # 2) بارگذاری کامل تنظیمات نکست از افزونه
+    next_config = addons.settings.get("next", {})
 
-    next_by_moderator_enabled = addons.settings.get("next", {}).get("allow_moderator_next", True) \
-        if "allow_moderator_next" in addons.settings.get("next", {}) else next_by_moderator_enabled
+    # 3) تنظیم مقدارهای نهایی
+    next_by_players_enabled = next_config.get("allow_players_next", True)
+    next_by_moderator_enabled = next_config.get("allow_moderator_next", True)
 
-
+    # 4) ارسال پیام نهایی
+    moderator_name = (await bot.get_chat_member(group_chat_id, moderator_id)).user.full_name
+    
     await callback.message.edit_text(
-        f"🎩 گرداننده انتخاب شد: {(await bot.get_chat_member(group_chat_id, moderator_id)).user.full_name}\n"
+        f"🎩 گرداننده انتخاب شد: {moderator_name}\n"
         f"حالا اعضا می‌توانند وارد بازی شوند یا انصراف دهند.",
         reply_markup=join_menu()
     )
+
     await callback.answer()
-
-
-
 
 # ======================
 # ورود و انصراف
@@ -1908,7 +1893,6 @@ async def join_game_callback(callback: types.CallbackQuery):
         await callback.answer("✅ شما وارد بازی شدید.")
 
     await update_lobby()
-
 
 # ===============================
 # خروج از بازی
@@ -2189,8 +2173,6 @@ async def confirm_cancel(callback: types.CallbackQuery):
     except:
         pass
 
-
-
 @dp.callback_query_handler(lambda c: c.data == "back_to_lobby")
 async def back_to_lobby(callback: types.CallbackQuery):
     await update_lobby()
@@ -2270,9 +2252,6 @@ async def distribute_roles_callback(callback: types.CallbackQuery):
             first_seat = turn_order[current_turn_index]
             # start_turn در کد شما هست — همان تابع را صدا بزن
             await start_turn(first_seat, duration=DEFAULT_TURN_DURATION, is_challenge=False)
-
-
-
 
 async def distribute_roles():
     """
@@ -2406,7 +2385,6 @@ async def render_game_message(edit=True):
         # اگر ویرایش شکست خورد، پیام جدید بفرست و id را ذخیره کن
         msg = await bot.send_message(group_chat_id, text, parse_mode="HTML", reply_markup=kb)
         game_message_id = msg.message_id
-
 
 # ===================
 # حذف پیام‌های خارج-از-نوبت
@@ -2605,9 +2583,6 @@ async def speaker_auto(callback: types.CallbackQuery):
         msg = await bot.send_message(group_chat_id, text, reply_markup=kb)
         game_message_id = msg.message_id
 
-
-
-
 #=======================================
 # انتخاب دستی → نمایش لیست صندلی‌ها با دکمه برای انتخاب
 #=======================================
@@ -2683,7 +2658,6 @@ async def head_set_handler(callback: types.CallbackQuery):
 
     await bot.send_message(group_chat_id, "🔧 حالا می‌توانید دور را شروع کنید:", reply_markup=kb)
 
-
 # ======================
 # شروع بازی و نوبت اول
 # ======================
@@ -2756,12 +2730,12 @@ async def start_turn(seat, duration=DEFAULT_TURN_DURATION, is_challenge=False):
 @dp.callback_query_handler(lambda c: c.data == "start_turn")
 async def handle_start_turn(callback: types.CallbackQuery):
     if callback.from_user.id != moderator_id:
-        await callback.answer("❌ فقط گرداننده می‌تواند دور را شروع کند.", show_alert=True)
+        await callback.answer("❌ فقط گرداننده می‌تونه دور رو شروع کنه.", show_alert=True)
         return
 
     global current_turn_index
     if not turn_order:
-        await callback.answer("⚠️ ترتیب نوبت‌ها مشخص نشده.", show_alert=True)
+        await callback.answer("⚠️ ترتیب نوبتا مشخص نشده.", show_alert=True)
         return
 
     current_turn_index = 0
@@ -2777,11 +2751,11 @@ async def handle_start_turn(callback: types.CallbackQuery):
 async def challenge_off_handler(callback: types.CallbackQuery):
     global challenge_active
     if callback.from_user.id != moderator_id:
-        await callback.answer("❌ فقط گرداننده می‌تواند چالش را غیرفعال کند.", show_alert=True)
+        await callback.answer("❌ فقط گرداننده می‌تونه چالش رو غیرفعال کنه.", show_alert=True)
         return
 
     if not challenge_active:
-        await callback.answer("⚔ چالش از قبل غیرفعال است.", show_alert=True)
+        await callback.answer("⚔ چالش قبلا غیرفعال شده.", show_alert=True)
         return
 
 @dp.callback_query_handler(lambda c: c.data == "challenge_toggle")
@@ -2793,7 +2767,7 @@ async def challenge_toggle_handler(callback: types.CallbackQuery):
     admin_ids = [a.user.id for a in admins]
 
     if callback.from_user.id != moderator_id and callback.from_user.id not in admin_ids:
-        await callback.answer("⛔ فقط گرداننده یا ادمین‌ها می‌توانند وضعیت چالش را تغییر دهند.", show_alert=True)
+        await callback.answer("⛔ فقط گرداننده یا ادمینا می‌تونن وضعیت چالشو تغییر بدن.", show_alert=True)
         return
 
     # تغییر وضعیت چالش
@@ -2818,8 +2792,6 @@ async def challenge_toggle_handler(callback: types.CallbackQuery):
 
     await callback.answer(f"✅ چالش {'روشن' if challenge_active else 'خاموش'} شد.")
 
-
-
 #=============================
 # تایمر زندهٔ نوبت (ویرایش پیام هر N ثانیه)
 #=============================
@@ -2829,18 +2801,42 @@ async def countdown(seat, duration, message_id, is_challenge=False):
     player_name = players.get(user_id, "بازیکن")
     mention = f"<a href='tg://user?id={user_id}'>{html.escape(str(player_name))}</a>"
 
+    # 🔧 تعیین prefix (برای رنگ‌بندی نوبت / امکانات افزونه)
+    prefix = ""
+    try:
+        prefix = addons.settings.get("turn_timer", {}).get("prefix", "")
+    except:
+        prefix = ""
+
     try:
         while remaining > 0:
             await asyncio.sleep(5)
             remaining -= 5
-            new_text = f"{prefix} ⏳ {max(0, remaining)//60:02d}:{max(0, remaining)%60:02d}\n🎙 نوبت صحبت {mention} است. ({max(0, remaining)} ثانیه)"
+
+            # پیام جدید تایمر
+            new_text = (
+                f"{prefix} ⏳ {max(0, remaining)//60:02d}:{max(0, remaining)%60:02d}\n"
+                f"🎙 نوبت صحبت {mention} است. ({max(0, remaining)} ثانیه)"
+            )
+
             try:
-                await bot.edit_message_text(new_text, chat_id=group_chat_id, message_id=message_id,
-                                            parse_mode="HTML", reply_markup=turn_keyboard(seat, is_challenge))
+                await bot.edit_message_text(
+                    new_text,
+                    chat_id=group_chat_id,
+                    message_id=message_id,
+                    parse_mode="HTML",
+                    reply_markup=turn_keyboard(seat, is_challenge)
+                )
             except:
                 pass
-        # پایان زمان → پیام موقتی
-        await send_temp_message(group_chat_id, f"⏳ زمان {mention} به پایان رسید.", delay=5)
+
+        # پایان زمان
+        await send_temp_message(
+            group_chat_id,
+            f"⏳ زمان {mention} به پایان رسید.",
+            delay=5
+        )
+
     except asyncio.CancelledError:
         return
 
@@ -2955,7 +2951,6 @@ async def start_night(callback: types.CallbackQuery):
 
     await bot.send_message(group_chat_id, "🌙 فاز شب شروع شد. بازیکنان ساکت باشند...", reply_markup=kb)
     await callback.answer()
-
 
 #===========================
 # روز کردن و ریست دور قبل
@@ -3088,7 +3083,6 @@ async def challenge_request(callback: types.CallbackQuery):
 
     await bot.send_message(group_chat_id, f"⚔ {challenger_name} از {target_name} درخواست چالش کرد.", reply_markup=kb)
     await callback.answer("⏳ درخواست ارسال شد.", show_alert=True)
-
 
 #=======================
 # پذیرش/رد چالش
@@ -3272,8 +3266,6 @@ async def _(c):
 async def _(c):
     addons.toggle("color", "challenge")
     await addons.menu_color(c)
-
-
 
 # ======================
 # استارتاپ
