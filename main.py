@@ -19,7 +19,10 @@ class AddScenario(StatesGroup):
     waiting_for_roles = State()
     waiting_for_min_players = State()
 
-from mafia_extensions import MafiaAddons
+import time
+now = time.time()
+
+from mafia_addons import MafiaAddons
 
 
 
@@ -1260,6 +1263,21 @@ async def distribute_roles_callback(callback: types.CallbackQuery):
         game_message_id = msg.message_id
 
     game_running = True
+    # اگر Auto Start فعال است → شروع دور اول خودکار
+    if addons.settings.get("auto_start", {}).get("enabled", False):
+        # ساخت turn_order بر اساس صندلی‌ها یا players
+        if player_slots:
+            seats_list = sorted(player_slots.keys())
+            turn_order = seats_list[:]
+        else:
+            turn_order = list(players.keys())
+
+        if turn_order:
+            current_turn_index = 0
+            first_seat = turn_order[current_turn_index]
+            # start_turn تابع شماست — آن را فراخوانی کن
+            await start_turn(first_seat, duration=DEFAULT_TURN_DURATION, is_challenge=False)
+
     await callback.answer("✅ نقش‌ها پخش شد!")
 
     # 💠 ارسال لیست نقش‌ها به گرداننده (مثل resend_roles)
@@ -1818,12 +1836,24 @@ async def choose_moderator(callback: types.CallbackQuery):
 async def moderator_selected(callback: types.CallbackQuery):
     global moderator_id
     moderator_id = int(callback.data.replace("moderator_", ""))
+    global next_by_players_enabled, next_by_moderator_enabled
+    next_by_players_enabled = addons.settings.get("next", {}).get("allow_players_next", next_by_players_enabled)
+    next_by_moderator_enabled = addons.settings.get("next", {}).get("allow_moderator_next", next_by_moderator_enabled)
+
 
     # ⬅ اینجا ثبت افزونه
     addons.register(
         moderator_id=moderator_id,
         group_id=group_chat_id
     )
+
+    # همگام‌سازی پیش‌فرض با تنظیمات افزونه (در صورت نیاز)
+    next_by_players_enabled = addons.settings.get("next", {}).get("allow_players_next", True) \
+        if "allow_players_next" in addons.settings.get("next", {}) else next_by_players_enabled
+
+    next_by_moderator_enabled = addons.settings.get("next", {}).get("allow_moderator_next", True) \
+        if "allow_moderator_next" in addons.settings.get("next", {}) else next_by_moderator_enabled
+
 
     await callback.message.edit_text(
         f"🎩 گرداننده انتخاب شد: {(await bot.get_chat_member(group_chat_id, moderator_id)).user.full_name}\n"
@@ -2225,6 +2255,22 @@ async def distribute_roles_callback(callback: types.CallbackQuery):
 
     game_running = True
     await callback.answer("✅ نقش‌ها پخش شد!")
+    # اگر Auto Start فعال است → شروع دور اول خودکار
+    if addons.settings.get("auto_start", {}).get("enabled", False):
+    # ساخت turn_order مثل start_round_handler
+        if player_slots:
+            seats_list = sorted(player_slots.keys())
+            turn_order = seats_list[:]
+        else:
+            turn_order = list(players.keys())
+
+    # اگر خالی نیست → شروع دور اول
+        if turn_order:
+            current_turn_index = 0
+            first_seat = turn_order[current_turn_index]
+            # start_turn در کد شما هست — همان تابع را صدا بزن
+            await start_turn(first_seat, duration=DEFAULT_TURN_DURATION, is_challenge=False)
+
 
 
 
@@ -2360,6 +2406,35 @@ async def render_game_message(edit=True):
         # اگر ویرایش شکست خورد، پیام جدید بفرست و id را ذخیره کن
         msg = await bot.send_message(group_chat_id, text, parse_mode="HTML", reply_markup=kb)
         game_message_id = msg.message_id
+
+
+# ===================
+# حذف پیام‌های خارج-از-نوبت
+# ===================
+@dp.message_handler()
+async def global_message_control(message: types.Message):
+    # فقط برای گروه بازی اعمال شود
+    if message.chat.id != group_chat_id:
+        return
+
+    # اگر کنترل نوبت فعال نباشد → کاری نکن
+    if not addons.settings.get("security", {}).get("control_speech", True):
+        return
+
+    # اگر حذف پیام‌های خارج نوبت فعال است و پیام توسط کسی است که نوبتش نیست → حذف کن
+    if addons.settings.get("security", {}).get("delete_out_of_turn", True):
+        # فرض می‌کنیم current turn seat -> uid = player_slots[turn_order[current_turn_index]]
+        try:
+            current_seat = turn_order[current_turn_index]
+            allowed_uid = player_slots.get(current_seat)
+        except Exception:
+            allowed_uid = None
+
+        if message.from_user.id != allowed_uid and message.from_user.id != moderator_id:
+            try:
+                await message.delete()
+            except:
+                pass
 
 
 # ======================
@@ -2643,7 +2718,21 @@ async def start_turn(seat, duration=DEFAULT_TURN_DURATION, is_challenge=False):
         #except:
             #pass
 
-    text = f"⏳ {duration//60:02d}:{duration%60:02d}\n🎙 نوبت صحبت {mention} است. ({duration} ثانیه)"
+    # قبل از ارسال متن نوبت:
+    use_primary = addons.settings.get("color", {}).get("primary", True)
+    use_challenge_color = addons.settings.get("color", {}).get("challenge", True)
+
+    if is_challenge and use_challenge_color:
+        prefix = "🟥"  # یا هر اموجی دلخواهت
+    elif use_primary:
+        prefix = "🟦"
+    else:
+        prefix = ""
+
+    text = f"{prefix} ⏳ {duration//60:02d}:{duration%60:02d}\n🎙 نوبت صحبت {mention} است. ({duration} ثانیه)"
+    # سپس ارسال یا edit پیام با همین text
+
+
     msg = await bot.send_message(group_chat_id, text, parse_mode="HTML", reply_markup=turn_keyboard(seat, is_challenge))
 
     # تلاش برای پین کردن پیام جدید (اختیاری)
@@ -2744,7 +2833,7 @@ async def countdown(seat, duration, message_id, is_challenge=False):
         while remaining > 0:
             await asyncio.sleep(5)
             remaining -= 5
-            new_text = f"⏳ {max(0, remaining)//60:02d}:{max(0, remaining)%60:02d}\n🎙 نوبت صحبت {mention} است. ({max(0, remaining)} ثانیه)"
+            new_text = f"{prefix} ⏳ {max(0, remaining)//60:02d}:{max(0, remaining)%60:02d}\n🎙 نوبت صحبت {mention} است. ({max(0, remaining)} ثانیه)"
             try:
                 await bot.edit_message_text(new_text, chat_id=group_chat_id, message_id=message_id,
                                             parse_mode="HTML", reply_markup=turn_keyboard(seat, is_challenge))
@@ -2778,12 +2867,13 @@ async def next_turn(callback: types.CallbackQuery):
         await callback.answer("⛔ نکست برای گرداننده غیرفعال شده.", show_alert=True)
         return
 
-
-    # ضد اسپم نکست — اگر کمتر از ۳ ثانیه از آخرین اجرا گذشته باشه، نادیده بگیر
+    if addons.settings.get("next", {}).get("anti_spam", True):
+    global last_next_time
     if now - last_next_time < 3:
         await callback.answer("⏳ لطفاً چند ثانیه صبر کنید...", show_alert=True)
         return
     last_next_time = now
+
 
     try:
         seat = int(callback.data.split("_", 1)[1])
