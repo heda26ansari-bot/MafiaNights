@@ -1,6 +1,6 @@
 import re
 
-SOURCE = "main1.py"
+SOURCE = "main.py"
 DEST = "main_fixed.py"
 
 # الگوهای رایج برای پیدا کردن نام‌های اصلی
