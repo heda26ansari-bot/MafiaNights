@@ -42,9 +42,9 @@ addons.setup_handlers(dp)
 #تست
 #ALLOWED_GROUP_ID = -1003080272814
 #اصلی
-ALLOWED_GROUP_ID = -1001760002160
+#ALLOWED_GROUP_ID = -1001760002160
 #چکنویس
-#ALLOWED_GROUP_ID = -1002356353761
+ALLOWED_GROUP_ID = -1002356353761
 
 # ======================
 # متغیرهای سراسری
