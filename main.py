@@ -1284,7 +1284,14 @@ async def distribute_roles_callback(callback: types.CallbackQuery):
         return
 
     # نمایش لیست بازیکنان در گروه
-    seats = {seat: (uid, display_name(player_uid, players.get(player_uid, "❓")) for seat, uid in player_slots.items()}
+    seats = {
+        seat: (
+            uid,
+            display_name(uid, players.get(uid, "❓"))
+        )
+        for seat, uid in player_slots.items()
+    }
+
     disp = display_name(uid, name)
     players_list = "\n".join([
         f"{seat:02d}. <a href='tg://user?id={uid}'>{html.escape(name)}</a>"
@@ -2307,7 +2314,14 @@ async def distribute_roles_callback(callback: types.CallbackQuery):
         return
 
     # نمایش خلاصه در گروه و تبديل پیام لابی به پیام بازی (game_message_id)
-    seats = {seat: (uid, display_name(player_uid, players.get(player_uid, "❓")) for seat, uid in player_slots.items()}
+    seats = {
+        seat: (
+            uid,
+            display_name(uid, players.get(uid, "❓"))
+        )
+        for seat, uid in player_slots.items()
+    }
+
     players_list = "\n".join([f"{seat}. <a href='tg://user?id={uid}'>{html.escape(name)}</a>" for seat, (uid, name) in sorted(seats.items())])
 
     text = (
@@ -2702,7 +2716,14 @@ async def speaker_manual(callback: types.CallbackQuery):
         await callback.answer("⚠ هیچ صندلی ثبت نشده.", show_alert=True)
         return
 
-    seats = {seat: (uid, display_name(player_uid, players.get(player_uid, "❓")) for seat, uid in player_slots.items()}
+    seats = {
+        seat: (
+            uid,
+            display_name(uid, players.get(uid, "❓"))
+        )
+        for seat, uid in player_slots.items()
+    }
+
     kb = InlineKeyboardMarkup(row_width=2)
     for seat, (uid, name) in sorted(seats.items()):
         kb.add(InlineKeyboardButton(f"{seat}. {html.escape(name)}", callback_data=f"head_set_{seat}"))
