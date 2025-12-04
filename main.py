@@ -364,7 +364,7 @@ async def add_to_substitute_list(message: types.Message):
         return
 
     user_id = message.from_user.id
-    user_name = display_name(user.id, user.full_name))
+    user_name = display_name(user.id, user.full_name)
 
     # اطمینان از وجود ساختار گروه
     if group_chat_id not in substitute_list:
@@ -1038,16 +1038,21 @@ async def do_replace_handler(callback: types.CallbackQuery):
         await callback.answer()
         return
 
-    # بازیکن قدیمی
+    # ---------------------------
+    # بازیکن قدیمی روی این صندلی
+    # ---------------------------
+    old_uid = player_slots.get(seat)
+
     old_real_name = players.get(old_uid, "❓")
-    # نام با اعمال مستعار
     old_name = display_name(old_uid, old_real_name)
 
-    # جایگزین جدید
-    # نام واقعی بازیکن جدید
+    # ---------------------------
+    # بازیکن جدید (جایگزین)
+    # ---------------------------
     new_real_name = players.get(uid_sub, "❓")
-    # نام با اعمال مستعار
     new_name = display_name(uid_sub, new_real_name)
+
+    # اعمال جایگزینی
     player_slots[seat] = uid_sub
 
     # انتقال نقش در صورت وجود
@@ -1055,10 +1060,15 @@ async def do_replace_handler(callback: types.CallbackQuery):
     if old_uid and last_role_map and old_uid in last_role_map:
         last_role_map[uid_sub] = last_role_map.pop(old_uid)
 
+    # ---------------------------
+    # پیام نهایی با نام مستعار
+    # ---------------------------
     await callback.message.answer(
-        f"✅ بازیکن {html.escape(old_name)} با {html.escape(players[uid_sub])} جایگزین شد (صندلی {seat})."
+        f"✅ بازیکن {html.escape(old_name)} با {html.escape(new_name)} جایگزین شد (صندلی {seat})."
     )
+
     await callback.answer()
+
 
 #=======================
 # حذف بازیکن
@@ -1117,7 +1127,7 @@ async def remove_player_confirm(callback: types.CallbackQuery):
         return
 
     # حذف از player_slots و players؛ و اضافه شدن به removed_players[group]
-    removed_players.setdefault(group_chat_id, {})[seat] = {"id": uid, "name": players.get(uid, "❓")}
+    removed_players.setdefault(group_chat_id, {})[seat] = {"id": uid, "name": display_name(player_uid, players.get(player_uid, "❓")}
     # حذف از players dict اگر موجوده
     try:
         if uid in players:
@@ -1270,7 +1280,7 @@ async def distribute_roles_callback(callback: types.CallbackQuery):
         return
 
     # نمایش لیست بازیکنان در گروه
-    seats = {seat: (uid, players.get(uid, "❓")) for seat, uid in player_slots.items()}
+    seats = {seat: (uid, display_name(player_uid, players.get(player_uid, "❓")) for seat, uid in player_slots.items()}
     disp = display_name(uid, name)
     players_list = "\n".join([
         f"{seat:02d}. <a href='tg://user?id={uid}'>{html.escape(name)}</a>"
@@ -2293,7 +2303,7 @@ async def distribute_roles_callback(callback: types.CallbackQuery):
         return
 
     # نمایش خلاصه در گروه و تبديل پیام لابی به پیام بازی (game_message_id)
-    seats = {seat: (uid, players.get(uid, "❓")) for seat, uid in player_slots.items()}
+    seats = {seat: (uid, display_name(player_uid, players.get(player_uid, "❓")) for seat, uid in player_slots.items()}
     players_list = "\n".join([f"{seat}. <a href='tg://user?id={uid}'>{html.escape(name)}</a>" for seat, (uid, name) in sorted(seats.items())])
 
     text = (
@@ -2688,7 +2698,7 @@ async def speaker_manual(callback: types.CallbackQuery):
         await callback.answer("⚠ هیچ صندلی ثبت نشده.", show_alert=True)
         return
 
-    seats = {seat: (uid, players.get(uid, "❓")) for seat, uid in player_slots.items()}
+    seats = {seat: (uid, display_name(player_uid, players.get(player_uid, "❓")) for seat, uid in player_slots.items()}
     kb = InlineKeyboardMarkup(row_width=2)
     for seat, (uid, name) in sorted(seats.items()):
         kb.add(InlineKeyboardButton(f"{seat}. {html.escape(name)}", callback_data=f"head_set_{seat}"))
