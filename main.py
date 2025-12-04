@@ -340,7 +340,7 @@ async def add_to_substitute_list(message: types.Message):
         return
 
     user_id = message.from_user.id
-    user_name = display_name(uid, message.from_display_name(user.id, user.full_name))
+    user_name = display_name(user.id, user.full_name))
 
     # اطمینان از وجود ساختار گروه
     if group_chat_id not in substitute_list:
@@ -1855,7 +1855,7 @@ async def scenario_selected(callback: types.CallbackQuery):
     global selected_scenario
     selected_scenario = callback.data.replace("scenario_", "")
     await callback.message.edit_text(
-        f"📝 سناریو انتخاب شد: {selected_scenario}\nحالا گرداننده را انتخاب کنید.",
+        f"📝 سناریو انتخاب شد: {selected_scenario}\nحالا گرداننده رو انتخاب کنید.",
         reply_markup=game_menu_keyboard()
     )
     await callback.answer()
@@ -1865,13 +1865,13 @@ async def choose_moderator(callback: types.CallbackQuery):
     global lobby_active
 
     if not lobby_active:
-        await callback.answer("❌ هیچ بازی فعالی برای انتخاب گرداننده وجود ندارد.", show_alert=True)
+        await callback.answer("❌ هیچ بازی فعالی برای انتخاب گرداننده وجود نداره.", show_alert=True)
         return
 
     kb = InlineKeyboardMarkup(row_width=1)
     for admin_id in admins:
         member = await bot.get_chat_member(group_chat_id, admin_id)
-        kb.add(InlineKeyboardButton(member.display_name(user.id, user.full_name), callback_data=f"moderator_{admin_id}"))
+        kb.add(InlineKeyboardButton(display_name(user.id, user.full_name), callback_data=f"moderator_{admin_id}"))
     await callback.message.edit_text("🎩 یک گرداننده انتخاب کنید:", reply_markup=kb)
     await callback.answer()
 
