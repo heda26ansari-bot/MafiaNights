@@ -79,3 +79,30 @@ def register_nickname_handlers(dp, bot):
         nickname = nick.get(target.id)
 
         if nickname:
+            await message.reply(f"📛 نام مستعار این کاربر: {nickname}")
+        else:
+            await message.reply("ℹ️ این کاربر نام مستعار ندارد.")
+
+    # -------------------------
+    # لیست مستعارها
+    # -------------------------
+    @dp.message_handler(lambda m: m.text.strip() == "لیست مستعار")
+    async def _(message: types.Message):
+        data = nick.all()
+        if not data:
+            await message.reply("📛 هیچ نام مستعاری ثبت نشده.")
+            return
+
+        text = "📛 <b>لیست نام‌های مستعار:</b>\n\n"
+        for uid, name in sorted(data.items(), key=lambda x: x[1]):
+            text += f" - {name}  <code>{uid}</code>\n"
+
+        await message.reply(text, parse_mode="HTML")
+
+
+# ==========================================
+# تابع کمکی برای کل پروژه
+# ==========================================
+def display_name(user_id: int, fallback: str):
+    """در کل پروژه فقط از این استفاده می‌کنیم"""
+    return nick.display_name(user_id, fallback)
