@@ -1127,7 +1127,11 @@ async def remove_player_confirm(callback: types.CallbackQuery):
         return
 
     # حذف از player_slots و players؛ و اضافه شدن به removed_players[group]
-    removed_players.setdefault(group_chat_id, {})[seat] = {"id": uid, "name": display_name(player_uid, players.get(player_uid, "❓")}
+    removed_players.setdefault(group_chat_id, {})[seat] = {
+        "id": player_uid,
+        "name": display_name(player_uid, players.get(player_uid, "❓"))
+    }
+
     # حذف از players dict اگر موجوده
     try:
         if uid in players:
