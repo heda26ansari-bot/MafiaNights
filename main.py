@@ -128,6 +128,30 @@ def display_name(uid, fallback_name):
 
     return fallback_name or "❓"
 
+# ------------------------------------------------
+# helper: نمایش نام با اولویت نام مستعار
+# ------------------------------------------------
+def display_name(user_id, fallback_name=None):
+    """
+    اگر نام مستعار وجود داشت آن را برگردان، در غیر اینصورت fallback_name یا players[user_id] یا str(user_id).
+    """
+    try:
+        nick = nicknames.get_nick(user_id)
+        if nick:
+            return nick
+    except Exception:
+        pass
+
+    if fallback_name:
+        return fallback_name
+
+    try:
+        # players ممکنه dict باشه: {uid: name}
+        return players.get(user_id) if isinstance(players, dict) else str(user_id)
+    except Exception:
+        return str(user_id)
+
+
 #=======================
 # داده های ریست در شروع روز
 #=======================
@@ -703,15 +727,13 @@ async def manage_game_handler(callback: types.CallbackQuery):
 async def reserve_waiting(callback: types.CallbackQuery):
     global waiting_list
 
-    user_id = callback.from_user.id
-    user_name = display_name(user_id, callback.from_user.full_name)
+    user = callback.from_user
+    user_id = user.id
+    user_name = display_name(user_id, user.full_name)
 
     # 1) اگر بازیکن در لیست اصلی است → اجازه نده
     if user_id in players:
-        await callback.answer(
-            "⚠️ شما در حال حاضر در لیست اصلی بازی هستید و نمی‌توانید در لیست رزرو باشید.",
-            show_alert=True
-        )
+        await callback.answer("⚠️ شما در حال حاضر در لیست اصلی بازی هستید و نمی‌توانید در لیست رزرو باشید.", show_alert=True)
         return
 
     # 2) جلوگیری از اضافه شدن تکراری
@@ -720,14 +742,13 @@ async def reserve_waiting(callback: types.CallbackQuery):
         await update_waiting_list_message()
         return
 
-    # 3) ثبت رزرو — بهتر است id ذخیره شود نه name
-    waiting_list.append({"id": user_id})
+    # 3) ثبت با ساختار ثابت (dict)
+    waiting_list.append({"id": user_id, "name": user_name})
 
     await callback.answer("✅ شما به لیست رزرو اضافه شدید.")
-
-    # پیام‌های مربوطه را آپدیت کن
     await update_waiting_list_message()
     await update_lobby()
+
 
 # =========================
 # کنسل رزرو
@@ -1871,7 +1892,9 @@ async def choose_moderator(callback: types.CallbackQuery):
     kb = InlineKeyboardMarkup(row_width=1)
     for admin_id in admins:
         member = await bot.get_chat_member(group_chat_id, admin_id)
-        kb.add(InlineKeyboardButton(display_name(user.id, user.full_name), callback_data=f"moderator_{admin_id}"))
+        name = display_name(member.user.id, member.user.full_name)
+        kb.add(InlineKeyboardButton(html.escape(name), callback_data=f"moderator_{admin_id}"))
+
     await callback.message.edit_text("🎩 یک گرداننده انتخاب کنید:", reply_markup=kb)
     await callback.answer()
 
@@ -1897,7 +1920,13 @@ async def moderator_selected(callback: types.CallbackQuery):
     next_by_moderator_enabled = next_config.get("allow_moderator_next", True)
 
     # 4) ارسال پیام نهایی
-    moderator_name = (await bot.get_chat_member(group_chat_id, moderator_id)).display_name(user.id, user.full_name)
+    try:
+        mod_member = await bot.get_chat_member(group_chat_id, moderator_id)
+        moderator_name = display_name(mod_member.user.id, mod_member.user.full_name)
+    except Exception:
+        moderator_name = display_name(moderator_id, None)
+
+
     
     await callback.message.edit_text(
         f"🎩 گرداننده انتخاب شد: {moderator_name}\n"
