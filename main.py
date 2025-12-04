@@ -13,6 +13,7 @@ from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.utils.exceptions import MessageNotModified, MessageToEditNotFound, MessageCantBeEdited
+from nickname_patch.py import register_nickname_handlers, display_name
 import jdatetime
 class AddScenario(StatesGroup):
     waiting_for_name = State()
@@ -34,7 +35,7 @@ if not API_TOKEN:
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=API_TOKEN, parse_mode="HTML")
 dp = Dispatcher(bot, storage=MemoryStorage())
-
+register_nickname_handlers(dp, bot)
 addons = MafiaAddons(bot)
 addons.setup_handlers(dp)
 
@@ -42,9 +43,9 @@ addons.setup_handlers(dp)
 #تست
 #ALLOWED_GROUP_ID = -1003080272814
 #اصلی
-ALLOWED_GROUP_ID = -1001760002160
+#ALLOWED_GROUP_ID = -1001760002160
 #چکنویس
-#ALLOWED_GROUP_ID = -1002356353761
+ALLOWED_GROUP_ID = -1002356353761
 
 # ======================
 # متغیرهای سراسری
@@ -85,6 +86,47 @@ extra_turns = []  # لیست بازیکن‌هایی که باید بعد از �
 last_next_time = 0
 next_by_players_enabled = True
 next_by_moderator_enabled = True
+
+
+# ======================
+# تعیین نام اصلی یا مستعار
+# ======================
+class PlayerDict(dict):
+    def __getitem__(self, uid):
+        # اگر نام مستعار دارد → برگردان
+        nick = nicknames.get_nick(uid)
+        if nick:
+            return nick
+
+        # اگر نام عادی وجود دارد → برگردان
+        if uid in self:
+            return super().__getitem__(uid)
+
+        return "❓"
+
+    def get(self, uid, default=None):
+        nick = nicknames.get_nick(uid)
+        if nick:
+            return nick
+
+        return super().get(uid, default)
+
+# تبدیل players به نسخه سفارشی
+players = PlayerDict(players)
+
+
+def display_name(uid):
+    return players.get(uid, "❓")
+
+
+def display_name(uid, fallback_name):
+    from nicknames_manager import get_nickname
+
+    nick = get_nickname(uid)
+    if nick:
+        return nick
+
+    return fallback_name or "❓"
 
 #=======================
 # داده های ریست در شروع روز
@@ -276,7 +318,7 @@ async def send_turn_order_list():
         uid = player_slots.get(seat)
         if not uid:
             continue
-        name = players.get(uid, "❓")
+        name = display_name(uid, players.get(uid, "❓"))
         mention = f"<a href='tg://user?id={uid}'><b>{html.escape(name)}</b></a>"
         text += f"\u200F{i:02d} {mention}\n"
 
@@ -298,7 +340,7 @@ async def add_to_substitute_list(message: types.Message):
         return
 
     user_id = message.from_user.id
-    user_name = message.from_user.full_name
+    user_name = display_name(uid, message.from_display_name(user.id, user.full_name))
 
     # اطمینان از وجود ساختار گروه
     if group_chat_id not in substitute_list:
@@ -345,7 +387,7 @@ async def seats_list_handler(message: types.Message):
     if player_slots:
         for seat in sorted(player_slots.keys()):
             uid = player_slots.get(seat)
-            name = players.get(uid, "❓") if uid else "---"
+            name = display_name(uid, players.get(uid, "❓")) if uid else "---"
             text_lines.append(f"{seat:02d}. {html.escape(name)}")
     elif reserved_list:
         for item in reserved_list:
@@ -419,7 +461,7 @@ async def show_players_handler(message: types.Message):
         lines = []
         for seat in sorted(player_slots.keys()):
             uid = player_slots.get(seat)
-            name = players.get(uid, "❓") if uid else "---"
+            name = display_name(uid, players.get(uid, "❓")) if uid else "---"
             lines.append(f"{seat:02d}. {html.escape(name)}")
         text = "📜 لیست بازیکنان:\n\n" + "\n".join(lines)
     else:
@@ -543,7 +585,7 @@ async def list_players_handler(callback: types.CallbackQuery):
     else:
         text = "👥 لیست بازیکنان (بر اساس شماره صندلی):\n"
         for seat, uid in seats:
-            name = players.get(uid, "❓")
+            name = display_name(uid, players.get(uid, "❓"))
             text += f"{seat}. <a href='tg://user?id={uid}'>{html.escape(name)}</a>\n"
 
     await callback.message.answer(text, parse_mode="HTML")
@@ -662,7 +704,8 @@ async def reserve_waiting(callback: types.CallbackQuery):
     global waiting_list
 
     user_id = callback.from_user.id
-    user_name = callback.from_user.full_name
+    user_name = callback.from_display_name(user.id, user.full_name))
+
 
     # 1) اگر بازیکن در لیست اصلی است → اجازه نده
     if user_id in players:
@@ -758,7 +801,7 @@ async def show_roles_list(user_id: int):
     # 📋 لیست بازیکنان بر اساس شماره صندلی
     for seat in sorted(player_slots.keys()):
         uid = player_slots[seat]
-        name = players.get(uid, "❓")
+        name = display_name(uid, players.get(uid, "❓"))
         mention = f"<b><a href='tg://user?id={uid}'>{html.escape(name)}</a></b>"
         text += f"{seat:02d} {mention}\n"
 
@@ -892,7 +935,7 @@ async def resend_roles_handler(callback: types.CallbackQuery):
     for seat in sorted(player_slots.keys()):
         uid = player_slots[seat]
         role = last_role_map.get(uid, "❓")
-        name = players.get(uid, "❓")
+        name = display_name(uid, players.get(uid, "❓"))
         mention = f"<a href='tg://user?id={uid}'><b>{html.escape(name)}</b></a>"
         fancy_text += f"\u200E{seat:02d} {mention} — {html.escape(role)}\n"
 
@@ -937,7 +980,7 @@ async def choose_substitute_for_replace(callback: types.CallbackQuery):
     uid_sub = int(callback.data.replace("choose_sub_", ""))
 
     # بازیکنان فعلی
-    current = {seat: players.get(uid, "❓") for seat, uid in player_slots.items()}
+    current = {seat: display_name(uid, players.get(uid, "❓")) for seat, uid in player_slots.items()}
     if not current:
         await callback.message.answer("🚫 هیچ بازیکنی در بازی نیست.")
         await callback.answer()
@@ -972,11 +1015,15 @@ async def do_replace_handler(callback: types.CallbackQuery):
         return
 
     # بازیکن قدیمی
-    old_uid = player_slots.get(seat)
-    old_name = players.pop(old_uid, "❓") if old_uid in players else "❓"
+    old_real_name = players.get(old_uid, "❓")
+    # نام با اعمال مستعار
+    old_name = display_name(old_uid, old_real_name)
 
     # جایگزین جدید
-    players[uid_sub] = sub_info.get("name", f"User{uid_sub}")
+    # نام واقعی بازیکن جدید
+    new_real_name = players.get(uid_sub, "❓")
+    # نام با اعمال مستعار
+    new_name = display_name(uid_sub, new_real_name)
     player_slots[seat] = uid_sub
 
     # انتقال نقش در صورت وجود
@@ -1008,7 +1055,7 @@ async def remove_player_handler(callback: types.CallbackQuery):
         kb = InlineKeyboardMarkup(row_width=1)
         for seat in sorted(player_slots.keys()):
             uid = player_slots[seat]
-            name = players.get(uid, "❓")
+            name = display_name(uid, players.get(uid, "❓"))
             kb.add(InlineKeyboardButton(f"{seat}. {html.escape(name)}", callback_data=f"confirm_remove_{seat}"))
         await callback.message.answer("🗑 لطفاً بازیکنی که می‌خواهید حذف شود را انتخاب کنید:", reply_markup=kb)
         await callback.answer()
@@ -1200,6 +1247,7 @@ async def distribute_roles_callback(callback: types.CallbackQuery):
 
     # نمایش لیست بازیکنان در گروه
     seats = {seat: (uid, players.get(uid, "❓")) for seat, uid in player_slots.items()}
+    disp = display_name(uid, name)
     players_list = "\n".join([
         f"{seat:02d}. <a href='tg://user?id={uid}'>{html.escape(name)}</a>"
         for seat, (uid, name) in sorted(seats.items())
@@ -1267,7 +1315,7 @@ async def distribute_roles_callback(callback: types.CallbackQuery):
         for seat in sorted(player_slots.keys()):
             uid = player_slots[seat]
             role = last_role_map.get(uid, "❓")
-            name = players.get(uid, "❓")
+            name = display_name(uid, players.get(uid, "❓"))
             mention = f"<a href='tg://user?id={uid}'><b>{html.escape(name)}</b></a>"
             fancy_text += f"\u200E{seat:02d} {mention} — {html.escape(role)}\n"
 
@@ -1340,9 +1388,9 @@ async def text_commands_handler(message: types.Message):
 
         parts = []
         for uid in uids:
-            name = players.get(uid) if isinstance(players, dict) else None
+            name = display_name(uid, players.get(uid)) if isinstance(players, dict) else None
             if name:
-                parts.append(f"<a href='tg://user?id={uid}'>{html.escape(name)}</a>")
+                parts.append(f"<a href='tg://user?id={uid}'>{html.escape(display_name(uid, name))}</a>")
             else:
                 parts.append(f"<a href='tg://user?id={uid}'>🎮</a>")
 
@@ -1366,7 +1414,7 @@ async def text_commands_handler(message: types.Message):
         parts = []
         for admin in admins:
             uid = admin.user.id
-            full = admin.user.full_name or str(uid)
+            full = display_name(uid, admin.user.full_name)) or str(uid)
             parts.append(f"<a href='tg://user?id={uid}'>{html.escape(full)}</a>")
 
         await message.reply("📢 تگ مدیران گروه:\n" + " ".join(parts), parse_mode="HTML")
@@ -1567,7 +1615,7 @@ async def change_moderator(callback: types.CallbackQuery):
     admins = await bot.get_chat_administrators(group_chat_id)
     kb = InlineKeyboardMarkup(row_width=1)
     for admin in admins:
-        kb.add(InlineKeyboardButton(admin.user.full_name, callback_data=f"set_mod_{admin.user.id}"))
+        kb.add(InlineKeyboardButton(display_name(uid, admin.user.full_name), callback_data=f"set_mod_{admin.user.id}"))
 
     await callback.message.edit_text("🔄 انتخاب گرداننده جدید:", reply_markup=kb)
     await callback.answer()
@@ -1578,7 +1626,7 @@ async def set_new_moderator(callback: types.CallbackQuery):
     global moderator_id
     new_id = int(callback.data.split("set_mod_")[1])
     moderator_id = new_id
-    new_name = callback.from_user.full_name if callback.from_user.id == new_id else players.get(new_id, "❓")
+    new_name = callback.from_display_name(user.id, user.full_name) if callback.from_user.id == new_id else players.get(new_id, "❓")
 
     await callback.message.edit_text(f"✅ گرداننده جدید تنظیم شد: <b>{new_name}</b>", parse_mode="HTML")
     await callback.answer()
@@ -1820,7 +1868,7 @@ async def choose_moderator(callback: types.CallbackQuery):
     kb = InlineKeyboardMarkup(row_width=1)
     for admin_id in admins:
         member = await bot.get_chat_member(group_chat_id, admin_id)
-        kb.add(InlineKeyboardButton(member.user.full_name, callback_data=f"moderator_{admin_id}"))
+        kb.add(InlineKeyboardButton(member.display_name(user.id, user.full_name), callback_data=f"moderator_{admin_id}"))
     await callback.message.edit_text("🎩 یک گرداننده انتخاب کنید:", reply_markup=kb)
     await callback.answer()
 
@@ -1846,7 +1894,7 @@ async def moderator_selected(callback: types.CallbackQuery):
     next_by_moderator_enabled = next_config.get("allow_moderator_next", True)
 
     # 4) ارسال پیام نهایی
-    moderator_name = (await bot.get_chat_member(group_chat_id, moderator_id)).user.full_name
+    moderator_name = (await bot.get_chat_member(group_chat_id, moderator_id)).display_name(user.id, user.full_name)
     
     await callback.message.edit_text(
         f"🎩 گرداننده انتخاب شد: {moderator_name}\n"
@@ -1884,13 +1932,13 @@ async def join_game_callback(callback: types.CallbackQuery):
     if len(player_slots) >= max_players:
         # اضافه به لیست رزرو
         if not any(w["id"] == user.id for w in waiting_list):
-            waiting_list.append({"id": user.id, "name": user.full_name})
+            waiting_list.append({"id": user.id, "name": display_name(user.id, user.full_name)})
             await callback.answer("✅ شما به لیست رزرو اضافه شدید.")
         else:
             await callback.answer("⚠️ شما در لیست رزرو هستید.", show_alert=True)
     else:
         # ثبت در لیست اصلی
-        players[user.id] = user.full_name
+        players[user.id] = display_name(user.id, user.full_name)
         # پیدا کردن اولین صندلی خالی
         for i in range(1, max_players + 1):
             if i not in player_slots:
@@ -1959,7 +2007,7 @@ async def update_lobby():
     if moderator_id:
         try:
             moderator = await bot.get_chat_member(group_chat_id, moderator_id)
-            text += f"👤 گرداننده: {html.escape(moderator.user.full_name)}\n\n"
+            text += f"👤 گرداننده: {html.escape(moderator.display_name(user.id, user.full_name))}\n\n"
         except:
             text += "👤 گرداننده: انتخاب نشده\n\n"
     else:
@@ -1982,8 +2030,9 @@ async def update_lobby():
         # 🎯 دکمه‌های صندلی
         for i in range(1, max_players + 1):
             if i in player_slots:
-                player_name = players.get(player_slots[i], "❓")
-                kb.insert(InlineKeyboardButton(f"{i} ({player_name})", callback_data=f"slot_{i}"))
+                player_uid = player_slots.get(i)
+                player_name = display_name(player_uid, players.get(player_uid, "❓"))
+                kb.insert(InlineKeyboardButton(f"{i} ({display_name(uid, player_name)})", callback_data=f"slot_{i}"))
             else:
                 kb.insert(InlineKeyboardButton(str(i), callback_data=f"slot_{i}"))
 
@@ -1998,7 +2047,7 @@ async def update_lobby():
             if waiting_list:
                 text += "\n\n📌 <b>لیست رزرو:</b>\n"
                 for w in waiting_list:
-                    text += f"- <a href='tg://user?id={w['id']}'>{html.escape(w['name'])}</a>\n"
+                    text += f"- <a href='tg://user?id={w['id']}'>{html.escape(display_name(w['id'], w['name']))}</a>\n"
             else:
                 text += "\n\n📌 لیست رزرو خالی است."
 
@@ -2064,8 +2113,11 @@ async def update_waiting_list_message():
     # ساخت متن لیست رزرو
     text = "📢 <b>لیست رزرو</b>\n\n"
     for idx, item in enumerate(waiting_list, start=1):
-        name = item.get("name", "❓")
+        uid = item.get("id")
+        name = display_name(uid, item.get("name", "❓"))
         text += f"{idx}. {html.escape(name)}\n"
+
+        
 
     text += "\nاگر می‌خواید جایگزین شوید، روی «💺 رزرو» بزنید.\nبرای انصراف از رزرو «❌ کنسل»."
 
@@ -2114,7 +2166,7 @@ async def join_waiting_handler(callback: types.CallbackQuery):
         return
 
     # ✅ اضافه به رزرو
-    waiting_list.append({"id": user.id, "name": user.full_name})
+    waiting_list.append({"id": user.id, "name": display_name(user.id, user.full_name)})
     await callback.answer("✅ شما به لیست رزرو اضافه شدید.", show_alert=True)
 
     await update_lobby()
@@ -2294,7 +2346,7 @@ async def distribute_roles():
             logging.warning("⚠️ ارسال نقش به %s شکست خورد: %s", pid, e)
             if moderator_id:
                 try:
-                    await bot.send_message(moderator_id, f"⚠ نمی‌توانم نقش را به {players.get(pid, pid)} ارسال کنم.")
+                    await bot.send_message(moderator_id, f"⚠ نمی‌تونم نقشو برا {players.get(pid, pid)} ارسال کنم.")
                 except:
                     pass
 
@@ -2319,7 +2371,7 @@ async def start_round_handler(callback: types.CallbackQuery):
     if not turn_order:
         seats_list = sorted(player_slots.keys())
         if not seats_list:
-            await callback.answer("⚠️ هیچ بازیکنی در بازی نیست.", show_alert=True)
+            await callback.answer("⚠️ هیچ بازیکنی در بازی نیس.", show_alert=True)
             return
         turn_order = seats_list[:]  # همه بازیکن‌ها به ترتیب صندلی
 
@@ -2350,24 +2402,24 @@ async def render_game_message(edit=True):
     for seat in range(1, max_players+1):
         if seat in player_slots:
             uid = player_slots[seat]
-            name = players.get(uid, "❓")
+            name = display_name(uid, players.get(uid, "❓"))
             lines.append(f"{seat}. <a href='tg://user?id={uid}'>{html.escape(name)}</a>")
-    players_list = "\n".join(lines) if lines else "هیچ بازیکنی ثبت نشده است."
+    players_list = "\n".join(lines) if lines else "هیچ بازیکنی ثبت نشده."
 
     head_text = ""
     if current_head_seat:
         head_uid = player_slots.get(current_head_seat)
-        head_name = players.get(head_uid, "❓")
+        head_name = display_name(head_uid, players.get(head_uid, "❓"))
         head_text = f"\n\nسر صحبت: صندلی {current_head_seat} - <a href='tg://user?id={head_uid}'>{html.escape(head_name)}</a>"
 
     text = (
         "🎮 بازی شروع شد!\n"
-        "📩 نقش‌ها در پیوی ارسال شدند.\n\n"
-        f"لیست بازیکنان حاضر (بر اساس صندلی):\n{players_list}\n\n"
-        "ℹ️ برای دیدن نقش به پیوی ربات برید\n"
-        "📜 لیست نقش‌ها برای گرداننده ارسال شد"
+        "📩 نقشا تو پیوی ارسال شدن.\n\n"
+        f"لیست بازیکنای حاضر (بر اساس صندلی):\n{players_list}\n\n"
+        "ℹ️ برای دیدن نقش به پیوی ربات برین\n"
+        "📜 لیست نقش برا گرداننده ارسال شد"
         f"{head_text}\n\n"
-        "🎤 گرداننده باید «سر صحبت» را انتخاب کند و سپس «شروع دور» را بزند."
+        "🎤 گرداننده باید «سر صحبت» رو انتخاب کنه و بعد «شروع دور» رو بزنه."
     )
 
     kb = InlineKeyboardMarkup(row_width=1)
@@ -2375,9 +2427,9 @@ async def render_game_message(edit=True):
     kb.add(InlineKeyboardButton("▶ شروع دور", callback_data="start_round"))
     
     if challenge_active:
-        kb.add(InlineKeyboardButton("⚔ چالش روشن", callback_data="challenge_toggle"))
+        kb.add(InlineKeyboardButton("⚔ چالش روشنه", callback_data="challenge_toggle"))
     else:
-        kb.add(InlineKeyboardButton("⚔ چالش خاموش", callback_data="challenge_toggle"))
+        kb.add(InlineKeyboardButton("⚔ چالش خاموشه", callback_data="challenge_toggle"))
     
 
     try:
@@ -2430,7 +2482,7 @@ async def start_play(callback: types.CallbackQuery):
 
     # فقط گرداننده می‌تواند شروع کند
     if callback.from_user.id != moderator_id:
-        await callback.answer("❌ فقط گرداننده می‌تواند بازی را شروع کند.", show_alert=True)
+        await callback.answer("❌ فقط گرداننده می‌تونه بازیو شروع کنه.", show_alert=True)
         return
 
     if not selected_scenario:
@@ -2441,12 +2493,12 @@ async def start_play(callback: types.CallbackQuery):
     # اطمینان از اینکه صندلی‌ها حداقل به اندازه حداقل بازیکنان پر شده‌اند
     occupied_seats = [s for s in range(1, max_players+1) if s in player_slots]
     if len(occupied_seats) < scenarios[selected_scenario]["min_players"]:
-        await callback.answer(f"❌ تعداد بازیکنان کافی نیست. حداقل {scenarios[selected_scenario]['min_players']} صندلی باید انتخاب شود.", show_alert=True)
+        await callback.answer(f"❌ تعداد بازیکنا کافی نیس. حداقل {scenarios[selected_scenario]['min_players']} صندلی باید انتخاب بشه.", show_alert=True)
         return
 
     # یا اگر خواستی می‌تونی اصرار کنی که همهٔ بازیکنان صندلی انتخاب کنند:
     if len(occupied_seats) != len(players):
-        await callback.answer("❌ لطفا همه بازیکنان ابتدا صندلی انتخاب کنند تا لیست مرتب بر اساس صندلی ساخته شود.", show_alert=True)
+        await callback.answer("❌ لطفا همه بازیکنا صندلی انتخاب کنن تا لیست مرتب بر اساس صندلی ساخته شه.", show_alert=True)
         return
 
     game_running = True
@@ -2464,11 +2516,11 @@ async def start_play(callback: types.CallbackQuery):
 
     text = (
         "🎮 بازی شروع شد!\n"
-        "📩 نقش‌ها در پیوی ارسال شدند.\n\n"
-        f"👥 لیست بازیکنان حاضر در بازی:\n{players_list}\n\n"
-        "ℹ️ برای دیدن نقش به پیوی ربات بروید.\n"
-        "📜 لیست نقش‌ها به گرداننده ارسال شد.\n\n"
-        "👑 گرداننده سر صحبت را انتخاب کند و شروع دور را بزند."
+        "📩 نقشا تو پیوی ارسال شدن.\n\n"
+        f"👥 لیست بازیکنای حاضر تو بازی:\n{players_list}\n\n"
+        "ℹ️ برای دیدن نقش به پیوی ربات برید.\n"
+        "📜 لیست نقشا به گرداننده ارسال شد.\n\n"
+        "👑 گرداننده سر صحبت رو انتخاب کنه و شروع دور رو بزنه."
     )
 
     # کیبورد جدید (انتخاب سر صحبت + شروع دور)
@@ -2478,9 +2530,9 @@ async def start_play(callback: types.CallbackQuery):
         InlineKeyboardButton("▶ شروع دور", callback_data="start_round")
     )
     if challenge_active:
-        kb.add(InlineKeyboardButton("⚔ چالش روشن", callback_data="challenge_toggle"))
+        kb.add(InlineKeyboardButton("⚔ چالش روشنه", callback_data="challenge_toggle"))
     else:
-        kb.add(InlineKeyboardButton("⚔ چالش خاموش", callback_data="challenge_toggle"))
+        kb.add(InlineKeyboardButton("⚔ چالش خاموشه", callback_data="challenge_toggle"))
     
     # ویرایش پیام لابی به پیام شروع بازی
     try:
@@ -2498,7 +2550,7 @@ async def start_play(callback: types.CallbackQuery):
     except Exception as e:
         print("❌ خطا در ویرایش پیام لابی:", e)
         
-    await callback.answer("✅ بازی شروع شد و نقش‌ها پخش شد!")
+    await callback.answer("✅ بازی شروع شد و نقشا پخش شد!")
 #==================================
 #منو انتخاب سر صحبت (نمایش گزینه خودکار/دستی)
 #==================================
@@ -2507,7 +2559,7 @@ async def choose_head(callback: types.CallbackQuery):
     global game_message_id
 
     if callback.from_user.id != moderator_id:
-        await callback.answer("❌ فقط گرداننده می‌تواند این کار را انجام دهد.", show_alert=True)
+        await callback.answer("❌ فقط گرداننده می‌تونه این کارو انجام بده.", show_alert=True)
         return
 
     kb = InlineKeyboardMarkup(row_width=1)
@@ -2516,7 +2568,7 @@ async def choose_head(callback: types.CallbackQuery):
         InlineKeyboardButton("✋ انتخاب دستی", callback_data="speaker_manual")
     )
 
-    text = "🔧 روش انتخاب سر صحبت را انتخاب کنید:"
+    text = "🔧 روش انتخاب سر صحبتو انتخاب کن:"
 
     msg_id = game_message_id or callback.message.message_id
     try:
@@ -2540,7 +2592,7 @@ async def speaker_auto(callback: types.CallbackQuery):
     global current_speaker, turn_order, current_turn_index, game_message_id
 
     if callback.from_user.id != moderator_id:
-        await callback.answer("❌ فقط گرداننده می‌تواند انتخاب کند.", show_alert=True)
+        await callback.answer("❌ فقط گرداننده می‌تونه انتخاب کنه.", show_alert=True)
         return
 
     if not player_slots:
@@ -2571,12 +2623,12 @@ async def speaker_auto(callback: types.CallbackQuery):
     kb.add(InlineKeyboardButton("▶ شروع دور", callback_data="start_round"))
     kb.add(
         InlineKeyboardButton(
-            "⚔ چالش روشن" if challenge_active else "⚔ چالش خاموش",
+            "⚔ چالش روشنه" if challenge_active else "⚔ چالش خاموشه",
             callback_data="challenge_toggle"
         )
     )
 
-    text = f"🎯 سر صحبت انتخاب شد (صندلی {current_speaker}).\nبرای شروع دور، دکمه‌ی «▶ شروع دور» را بزنید."
+    text = f"🎯 سر صحبت انتخاب شد (صندلی {current_speaker}).\nبرای شروع دور، دکمه‌ی «▶ شروع دور» رو بزن."
 
     msg_id = game_message_id or callback.message.message_id
     try:
@@ -2597,7 +2649,7 @@ async def speaker_manual(callback: types.CallbackQuery):
     global game_message_id
 
     if callback.from_user.id != moderator_id:
-        await callback.answer("❌ فقط گرداننده می‌تواند انتخاب کند.", show_alert=True)
+        await callback.answer("❌ فقط گرداننده می‌تونه انتخاب کنه.", show_alert=True)
         return
 
     if not player_slots:
@@ -2609,7 +2661,7 @@ async def speaker_manual(callback: types.CallbackQuery):
     for seat, (uid, name) in sorted(seats.items()):
         kb.add(InlineKeyboardButton(f"{seat}. {html.escape(name)}", callback_data=f"head_set_{seat}"))
 
-    text = "✋ یکی از بازیکنان را برای سر صحبت انتخاب کنید:"
+    text = "✋ یکی از بازیکنا رو برای سر صحبت انتخاب کن:"
 
     msg_id = game_message_id or callback.message.message_id
     try:
@@ -2632,14 +2684,14 @@ async def head_set_handler(callback: types.CallbackQuery):
     global turn_order, current_turn_index
 
     if callback.from_user.id != moderator_id:
-        await callback.answer("❌ فقط گرداننده می‌تواند سر صحبت را تعیین کند.", show_alert=True)
+        await callback.answer("❌ فقط گرداننده می‌تونه سر صحبتو تعیین کنه.", show_alert=True)
         return
 
     # صندلی انتخاب شده
     seat = int(callback.data.split("head_set_")[1])
 
     if seat not in player_slots:
-        await callback.answer("⚠ این صندلی خالی است.", show_alert=True)
+        await callback.answer("⚠ این صندلی خالیه.", show_alert=True)
         return
 
     # ساخت ترتیب نوبت: بازیکن انتخاب‌شده اول، بقیه به ترتیب صندلی‌ها
@@ -2658,11 +2710,11 @@ async def head_set_handler(callback: types.CallbackQuery):
     kb = InlineKeyboardMarkup(row_width=1)
     kb.add(InlineKeyboardButton("▶ شروع دور", callback_data="start_round"))
     if challenge_active:
-        kb.add(InlineKeyboardButton("⚔ چالش روشن", callback_data="challenge_toggle"))
+        kb.add(InlineKeyboardButton("⚔ چالش روشنه", callback_data="challenge_toggle"))
     else:
-        kb.add(InlineKeyboardButton("⚔ چالش خاموش", callback_data="challenge_toggle"))
+        kb.add(InlineKeyboardButton("⚔ چالش خاموشه", callback_data="challenge_toggle"))
 
-    await bot.send_message(group_chat_id, "🔧 حالا می‌توانید دور را شروع کنید:", reply_markup=kb)
+    await bot.send_message(group_chat_id, "🔧 حالا می‌تونید دور رو شروع کنید:", reply_markup=kb)
 
 # ======================
 # شروع بازی و نوبت اول
@@ -2681,12 +2733,15 @@ async def start_turn(seat, duration=DEFAULT_TURN_DURATION, is_challenge=False):
 
     # seat باید در player_slots باشد
     if seat not in player_slots:
-        await bot.send_message(group_chat_id, f"⚠️ صندلی {seat} بازیکنی ندارد.")
+        await bot.send_message(group_chat_id, f"⚠️ صندلی {seat} خالیه .")
         return
 
     user_id = player_slots[seat]
-    player_name = players.get(user_id, "بازیکن")
-    mention = f"<a href='tg://user?id={user_id}'>{html.escape(str(player_name))}</a>"
+    player_uid = player_slots.get(i)
+    player_name = display_name(player_uid, players.get(player_uid, "❓"))
+    disp = display_name(user_id, player_name)
+    mention = f"<a href='tg://user?id={user_id}'>{html.escape(disp)}</a>"
+
 
     # حالت چالش را تنظیم کن
     challenge_mode = bool(is_challenge)
@@ -2785,7 +2840,7 @@ async def challenge_toggle_handler(callback: types.CallbackQuery):
     kb.add(InlineKeyboardButton("▶ شروع دور", callback_data="start_round"))
     kb.add(
         InlineKeyboardButton(
-            "⚔ چالش روشن" if challenge_active else "⚔ چالش خاموش",
+            "⚔ چالش روشنه" if challenge_active else "⚔ چالش خاموشه",
             callback_data="challenge_toggle"
         )
     )
@@ -2804,8 +2859,11 @@ async def challenge_toggle_handler(callback: types.CallbackQuery):
 async def countdown(seat, duration, message_id, is_challenge=False):
     remaining = duration
     user_id = player_slots.get(seat)
-    player_name = players.get(user_id, "بازیکن")
-    mention = f"<a href='tg://user?id={user_id}'>{html.escape(str(player_name))}</a>"
+    player_uid = player_slots.get(i)
+    player_name = display_name(player_uid, players.get(player_uid, "❓"))
+    disp = display_name(user_id, player_name)
+    mention = f"<a href='tg://user?id={user_id}'>{html.escape(disp)}</a>"
+
 
     # 🔧 تعیین prefix (برای رنگ‌بندی نوبت / امکانات افزونه)
     prefix = ""
@@ -2822,7 +2880,7 @@ async def countdown(seat, duration, message_id, is_challenge=False):
             # پیام جدید تایمر
             new_text = (
                 f"{prefix} ⏳ {max(0, remaining)//60:02d}:{max(0, remaining)%60:02d}\n"
-                f"🎙 نوبت صحبت {mention} است. ({max(0, remaining)} ثانیه)"
+                f"🎙 نوبت صحبت {mention} ست. ({max(0, remaining)} ثانیه)"
             )
 
             try:
@@ -2839,7 +2897,7 @@ async def countdown(seat, duration, message_id, is_challenge=False):
         # پایان زمان
         await send_temp_message(
             group_chat_id,
-            f"⏳ زمان {mention} به پایان رسید.",
+            f"⏳ زمان {mention}  تموم شد.",
             delay=5
         )
 
@@ -2873,7 +2931,7 @@ async def next_turn(callback: types.CallbackQuery):
     if addons.settings.get("next", {}).get("anti_spam", True):
         global last_next_time
         if now - last_next_time < 3:
-            await callback.answer("⏳ لطفاً چند ثانیه صبر کنید...", show_alert=True)
+            await callback.answer("⏳ لطفاً یکم صبر کن...", show_alert=True)
             return
         last_next_time = now
 
@@ -2886,7 +2944,7 @@ async def next_turn(callback: types.CallbackQuery):
 
     player_uid = player_slots.get(seat)
     if callback.from_user.id != moderator_id and callback.from_user.id != player_uid:
-        await callback.answer("❌ فقط بازیکن مربوطه یا گرداننده می‌تواند نوبت را پایان دهد.", show_alert=True)
+        await callback.answer("❌ فقط بازیکن مربوطه یا گرداننده می‌تونه نوبت رو رد کنه.", show_alert=True)
         return
 
     # لغو تایمر اگر فعال است
@@ -2937,7 +2995,7 @@ async def next_turn(callback: types.CallbackQuery):
     if current_turn_index >= len(turn_order):
         kb = InlineKeyboardMarkup()
         kb.add(InlineKeyboardButton("🌙 شروع فاز شب", callback_data="start_night"))
-        await bot.send_message(group_chat_id, "✅ همه بازیکنان صحبت کردند. فاز روز پایان یافت.", reply_markup=kb)
+        await bot.send_message(group_chat_id, "✅ همه بازیکنا صحبت کردن. فاز روز تموم شد.", reply_markup=kb)
     else:
         next_seat = turn_order[current_turn_index]
         await start_turn(next_seat)
@@ -2949,13 +3007,13 @@ async def next_turn(callback: types.CallbackQuery):
 @dp.callback_query_handler(lambda c: c.data == "start_night")
 async def start_night(callback: types.CallbackQuery):
     if callback.from_user.id != moderator_id:
-        await callback.answer("❌ فقط گرداننده می‌تواند فاز شب را شروع کند.", show_alert=True)
+        await callback.answer("❌ فقط گرداننده می‌تونه فاز شب رو شروع کنه.", show_alert=True)
         return
 
     kb = InlineKeyboardMarkup()
     kb.add(InlineKeyboardButton("🌞 شروع روز جدید", callback_data="start_new_day"))
 
-    await bot.send_message(group_chat_id, "🌙 فاز شب شروع شد. بازیکنان ساکت باشند...", reply_markup=kb)
+    await bot.send_message(group_chat_id, "🌙 فاز شب شروع شد. کسی تایپ نباشه...", reply_markup=kb)
     await callback.answer()
 
 #===========================
@@ -3010,8 +3068,8 @@ async def challenge_choice(callback: types.CallbackQuery):
     challenger_id = int(parts[2])
     target_id = int(parts[3])
 
-    challenger_name = players.get(challenger_id, "بازیکن")
-    target_name = players.get(target_id, "بازیکن")
+    challenger_name = display_name(challenger_id, players.get(challenger_id))
+    target_name = display_name(target_id, players.get(target_id))
 
     if callback.from_user.id not in [challenger_id, moderator_id]:
         await callback.answer("❌ فقط چالش‌کننده یا گرداننده می‌تواند این گزینه را انتخاب کند.", show_alert=True)
