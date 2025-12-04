@@ -1417,7 +1417,7 @@ async def text_commands_handler(message: types.Message):
         parts = []
         for admin in admins:
             uid = admin.user.id
-            full = display_name(uid, admin.user.full_name)) or str(uid)
+            full = display_name(uid, admin.user.full_name) or str(uid)
             parts.append(f"<a href='tg://user?id={uid}'>{html.escape(full)}</a>")
 
         await message.reply("📢 تگ مدیران گروه:\n" + " ".join(parts), parse_mode="HTML")
