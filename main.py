@@ -704,28 +704,31 @@ async def reserve_waiting(callback: types.CallbackQuery):
     global waiting_list
 
     user_id = callback.from_user.id
-    user_name = callback.from_display_name(user.id, user.full_name))
-
+    user_name = display_name(user_id, callback.from_user.full_name)
 
     # 1) اگر بازیکن در لیست اصلی است → اجازه نده
     if user_id in players:
-        await callback.answer("⚠️ شما در حال حاضر در لیست اصلی بازی هستید و نمی‌توانید در لیست رزرو باشید.", show_alert=True)
+        await callback.answer(
+            "⚠️ شما در حال حاضر در لیست اصلی بازی هستید و نمی‌توانید در لیست رزرو باشید.",
+            show_alert=True
+        )
         return
 
     # 2) جلوگیری از اضافه شدن تکراری
     if any(w.get("id") == user_id for w in waiting_list):
         await callback.answer("ℹ️ شما قبلاً در لیست رزرو هستید.", show_alert=True)
-        # اما اگر پیام لیست رزرو ناقص است، آن را آپدیت کن
         await update_waiting_list_message()
         return
 
-    # 3) ثبت با ساختار ثابت (dict)
-    waiting_list.append({"id": user_id, "name": user_name})
+    # 3) ثبت رزرو — بهتر است id ذخیره شود نه name
+    waiting_list.append({"id": user_id})
 
     await callback.answer("✅ شما به لیست رزرو اضافه شدید.")
-    # به‌روزرسانی پیام لیست رزرو و لابی (در صورت نیاز)
+
+    # پیام‌های مربوطه را آپدیت کن
     await update_waiting_list_message()
     await update_lobby()
+
 # =========================
 # کنسل رزرو
 # =========================
