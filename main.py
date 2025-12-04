@@ -13,7 +13,7 @@ from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.utils.exceptions import MessageNotModified, MessageToEditNotFound, MessageCantBeEdited
-from nickname_patch.py import register_nickname_handlers, display_name
+from nickname_patch import register_nickname_handlers, display_name
 import jdatetime
 class AddScenario(StatesGroup):
     waiting_for_name = State()
