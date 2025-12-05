@@ -88,7 +88,6 @@ extra_turns = []  # لیست بازیکن‌هایی که باید بعد از �
 last_next_time = 0
 next_by_players_enabled = True
 next_by_moderator_enabled = True
-last_role_map = {}
 
 
 # ======================
