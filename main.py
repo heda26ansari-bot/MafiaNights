@@ -13,7 +13,7 @@ from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.utils.exceptions import MessageNotModified, MessageToEditNotFound, MessageCantBeEdited
-from nickname_patch.py import register_nickname_handlers, display_name
+from nickname_patch import register_nickname_handlers, display_name
 import jdatetime
 class AddScenario(StatesGroup):
     waiting_for_name = State()
@@ -318,7 +318,7 @@ async def send_turn_order_list():
         uid = player_slots.get(seat)
         if not uid:
             continue
-        name = players.get(uid, "❓")
+        name = display_name(uid, players.get(uid, "❓"))
         mention = f"<a href='tg://user?id={uid}'><b>{html.escape(name)}</b></a>"
         text += f"\u200F{i:02d} {mention}\n"
 
@@ -340,7 +340,7 @@ async def add_to_substitute_list(message: types.Message):
         return
 
     user_id = message.from_user.id
-    user_name = display_name(uid, message.from_display_name(user.id, user.full_name))
+    user_name = display_name(user.id, user.full_name))
 
     # اطمینان از وجود ساختار گروه
     if group_chat_id not in substitute_list:
@@ -387,7 +387,7 @@ async def seats_list_handler(message: types.Message):
     if player_slots:
         for seat in sorted(player_slots.keys()):
             uid = player_slots.get(seat)
-            name = players.get(uid, "❓") if uid else "---"
+            name = display_name(uid, players.get(uid, "❓")) if uid else "---"
             text_lines.append(f"{seat:02d}. {html.escape(name)}")
     elif reserved_list:
         for item in reserved_list:
@@ -461,7 +461,7 @@ async def show_players_handler(message: types.Message):
         lines = []
         for seat in sorted(player_slots.keys()):
             uid = player_slots.get(seat)
-            name = players.get(uid, "❓") if uid else "---"
+            name = display_name(uid, players.get(uid, "❓")) if uid else "---"
             lines.append(f"{seat:02d}. {html.escape(name)}")
         text = "📜 لیست بازیکنان:\n\n" + "\n".join(lines)
     else:
@@ -585,7 +585,7 @@ async def list_players_handler(callback: types.CallbackQuery):
     else:
         text = "👥 لیست بازیکنان (بر اساس شماره صندلی):\n"
         for seat, uid in seats:
-            name = players.get(uid, "❓")
+            name = display_name(uid, players.get(uid, "❓"))
             text += f"{seat}. <a href='tg://user?id={uid}'>{html.escape(name)}</a>\n"
 
     await callback.message.answer(text, parse_mode="HTML")
@@ -704,28 +704,31 @@ async def reserve_waiting(callback: types.CallbackQuery):
     global waiting_list
 
     user_id = callback.from_user.id
-    user_name = callback.from_display_name(user.id, user.full_name))
-
+    user_name = display_name(user_id, callback.from_user.full_name)
 
     # 1) اگر بازیکن در لیست اصلی است → اجازه نده
     if user_id in players:
-        await callback.answer("⚠️ شما در حال حاضر در لیست اصلی بازی هستید و نمی‌توانید در لیست رزرو باشید.", show_alert=True)
+        await callback.answer(
+            "⚠️ شما در حال حاضر در لیست اصلی بازی هستید و نمی‌توانید در لیست رزرو باشید.",
+            show_alert=True
+        )
         return
 
     # 2) جلوگیری از اضافه شدن تکراری
     if any(w.get("id") == user_id for w in waiting_list):
         await callback.answer("ℹ️ شما قبلاً در لیست رزرو هستید.", show_alert=True)
-        # اما اگر پیام لیست رزرو ناقص است، آن را آپدیت کن
         await update_waiting_list_message()
         return
 
-    # 3) ثبت با ساختار ثابت (dict)
-    waiting_list.append({"id": user_id, "name": user_name})
+    # 3) ثبت رزرو — بهتر است id ذخیره شود نه name
+    waiting_list.append({"id": user_id})
 
     await callback.answer("✅ شما به لیست رزرو اضافه شدید.")
-    # به‌روزرسانی پیام لیست رزرو و لابی (در صورت نیاز)
+
+    # پیام‌های مربوطه را آپدیت کن
     await update_waiting_list_message()
     await update_lobby()
+
 # =========================
 # کنسل رزرو
 # =========================
@@ -801,7 +804,7 @@ async def show_roles_list(user_id: int):
     # 📋 لیست بازیکنان بر اساس شماره صندلی
     for seat in sorted(player_slots.keys()):
         uid = player_slots[seat]
-        name = players.get(uid, "❓")
+        name = display_name(uid, players.get(uid, "❓"))
         mention = f"<b><a href='tg://user?id={uid}'>{html.escape(name)}</a></b>"
         text += f"{seat:02d} {mention}\n"
 
@@ -935,7 +938,7 @@ async def resend_roles_handler(callback: types.CallbackQuery):
     for seat in sorted(player_slots.keys()):
         uid = player_slots[seat]
         role = last_role_map.get(uid, "❓")
-        name = players.get(uid, "❓")
+        name = display_name(uid, players.get(uid, "❓"))
         mention = f"<a href='tg://user?id={uid}'><b>{html.escape(name)}</b></a>"
         fancy_text += f"\u200E{seat:02d} {mention} — {html.escape(role)}\n"
 
@@ -980,7 +983,7 @@ async def choose_substitute_for_replace(callback: types.CallbackQuery):
     uid_sub = int(callback.data.replace("choose_sub_", ""))
 
     # بازیکنان فعلی
-    current = {seat: players.get(uid, "❓") for seat, uid in player_slots.items()}
+    current = {seat: display_name(uid, players.get(uid, "❓")) for seat, uid in player_slots.items()}
     if not current:
         await callback.message.answer("🚫 هیچ بازیکنی در بازی نیست.")
         await callback.answer()
@@ -1015,11 +1018,15 @@ async def do_replace_handler(callback: types.CallbackQuery):
         return
 
     # بازیکن قدیمی
-    old_uid = player_slots.get(seat)
-    old_name = players.pop(old_uid, "❓") if old_uid in players else "❓"
+    old_real_name = players.get(old_uid, "❓")
+    # نام با اعمال مستعار
+    old_name = display_name(old_uid, old_real_name)
 
     # جایگزین جدید
-    players[uid_sub] = sub_info.get("name", f"User{uid_sub}")
+    # نام واقعی بازیکن جدید
+    new_real_name = players.get(uid_sub, "❓")
+    # نام با اعمال مستعار
+    new_name = display_name(uid_sub, new_real_name)
     player_slots[seat] = uid_sub
 
     # انتقال نقش در صورت وجود
@@ -1051,7 +1058,7 @@ async def remove_player_handler(callback: types.CallbackQuery):
         kb = InlineKeyboardMarkup(row_width=1)
         for seat in sorted(player_slots.keys()):
             uid = player_slots[seat]
-            name = players.get(uid, "❓")
+            name = display_name(uid, players.get(uid, "❓"))
             kb.add(InlineKeyboardButton(f"{seat}. {html.escape(name)}", callback_data=f"confirm_remove_{seat}"))
         await callback.message.answer("🗑 لطفاً بازیکنی که می‌خواهید حذف شود را انتخاب کنید:", reply_markup=kb)
         await callback.answer()
@@ -1311,7 +1318,7 @@ async def distribute_roles_callback(callback: types.CallbackQuery):
         for seat in sorted(player_slots.keys()):
             uid = player_slots[seat]
             role = last_role_map.get(uid, "❓")
-            name = players.get(uid, "❓")
+            name = display_name(uid, players.get(uid, "❓"))
             mention = f"<a href='tg://user?id={uid}'><b>{html.escape(name)}</b></a>"
             fancy_text += f"\u200E{seat:02d} {mention} — {html.escape(role)}\n"
 
@@ -1410,7 +1417,7 @@ async def text_commands_handler(message: types.Message):
         parts = []
         for admin in admins:
             uid = admin.user.id
-            full = display_name(uid, admin.user.full_name)) or str(uid)
+            full = display_name(uid, admin.user.full_name) or str(uid)
             parts.append(f"<a href='tg://user?id={uid}'>{html.escape(full)}</a>")
 
         await message.reply("📢 تگ مدیران گروه:\n" + " ".join(parts), parse_mode="HTML")
@@ -1848,7 +1855,7 @@ async def scenario_selected(callback: types.CallbackQuery):
     global selected_scenario
     selected_scenario = callback.data.replace("scenario_", "")
     await callback.message.edit_text(
-        f"📝 سناریو انتخاب شد: {selected_scenario}\nحالا گرداننده را انتخاب کنید.",
+        f"📝 سناریو انتخاب شد: {selected_scenario}\nحالا گرداننده رو انتخاب کنید.",
         reply_markup=game_menu_keyboard()
     )
     await callback.answer()
@@ -1858,13 +1865,13 @@ async def choose_moderator(callback: types.CallbackQuery):
     global lobby_active
 
     if not lobby_active:
-        await callback.answer("❌ هیچ بازی فعالی برای انتخاب گرداننده وجود ندارد.", show_alert=True)
+        await callback.answer("❌ هیچ بازی فعالی برای انتخاب گرداننده وجود نداره.", show_alert=True)
         return
 
     kb = InlineKeyboardMarkup(row_width=1)
     for admin_id in admins:
         member = await bot.get_chat_member(group_chat_id, admin_id)
-        kb.add(InlineKeyboardButton(member.display_name(user.id, user.full_name), callback_data=f"moderator_{admin_id}"))
+        kb.add(InlineKeyboardButton(display_name(user.id, user.full_name), callback_data=f"moderator_{admin_id}"))
     await callback.message.edit_text("🎩 یک گرداننده انتخاب کنید:", reply_markup=kb)
     await callback.answer()
 
@@ -2043,7 +2050,7 @@ async def update_lobby():
             if waiting_list:
                 text += "\n\n📌 <b>لیست رزرو:</b>\n"
                 for w in waiting_list:
-                    text += f"- <a href='tg://user?id={w['id']}'>{html.escape(w['name'])}</a>\n"
+                    text += f"- <a href='tg://user?id={w['id']}'>{html.escape(display_name(w['id'], w['name']))}</a>\n"
             else:
                 text += "\n\n📌 لیست رزرو خالی است."
 
@@ -2398,7 +2405,7 @@ async def render_game_message(edit=True):
     for seat in range(1, max_players+1):
         if seat in player_slots:
             uid = player_slots[seat]
-            name = players.get(uid, "❓")
+            name = display_name(uid, players.get(uid, "❓"))
             lines.append(f"{seat}. <a href='tg://user?id={uid}'>{html.escape(name)}</a>")
     players_list = "\n".join(lines) if lines else "هیچ بازیکنی ثبت نشده."
 
