@@ -17,9 +17,6 @@ from nickname_patch import register_nickname_handlers, display_name
 from nicknames_manager import NicknameManager
 nicknames = NicknameManager()
 
-# نمونه از کلاس برای استفاده
-nicknames = NicknameManager()
-
 import jdatetime
 class AddScenario(StatesGroup):
     waiting_for_name = State()
@@ -87,12 +84,15 @@ removed_players = {}  # group_id: {seat_number: {"id": user_id, "name": name, "r
 MAX_SEATS = 0        # تعداد صندلی‌ها، بعد از انتخاب سناریو مقداردهی میشه
 waiting_message_id = None
 waiting_list = []     # لیست انتظار جایگزین
-substitute_list = {}  # لیست جایگزین‌ها بر اساس گروه
 extra_turns = []  # لیست بازیکن‌هایی که باید بعد از پایان دور یک ترن اضافه بگیرن
 last_next_time = 0
 next_by_players_enabled = True
 next_by_moderator_enabled = True
-
+reserved_god = None
+reserved_list = None
+reserved_scenario = None
+round_active = False
+group_admins = []
 
 # ======================
 # تعیین نام اصلی یا مستعار
@@ -100,7 +100,7 @@ next_by_moderator_enabled = True
 class PlayerDict(dict):
     def __getitem__(self, uid):
         # اگر نام مستعار دارد → برگردان
-        nick = nicknames.get_nick(uid)
+        nick = nicknames.get(uid)
         if nick:
             return nick
 
@@ -384,7 +384,7 @@ async def add_to_substitute_list(message: types.Message):
         return
 
     user_id = message.from_user.id
-    user_name = display_name(user.id, user.full_name)
+    user_name = display_name(user.id, message.from_user.full_name)
 
     # اطمینان از وجود ساختار گروه
     if group_chat_id not in substitute_list:
@@ -475,14 +475,14 @@ async def my_role_handler(message: types.Message):
 # =========================
 @dp.message_handler(lambda m: m.text and m.text.strip() == "لیست بازیکنان")
 async def show_players_handler(message: types.Message):
-    global group_chat_id, reserved_god, players, player_slots, group_admins, bot
+    global group_chat_id, players, player_slots, moderator_id, bot # <--- متغیرهای جهانی اصلاح شدند
 
     # در گروه: بررسی اینکه فرستنده ادمین هست یا نه
     is_allowed = False
     uid = message.from_user.id
 
     # اگر فرستنده گرداننده باشه اجازه بده
-    if reserved_god and uid == reserved_god.get("id"):
+    if uid == moderator_id: # <--- استفاده از moderator_id
         is_allowed = True
     else:
         # اگر پیام در گروه باشه، چک کن او ادمین است
@@ -490,11 +490,15 @@ async def show_players_handler(message: types.Message):
             member = await bot.get_chat_member(message.chat.id, uid)
             if member.status in ["creator", "administrator"]:
                 is_allowed = True
-        else:
-            # اگر در پیویه، سعی کن group_admins رو آپدیت کنی و چک کن
-            await ensure_group_admins()
-            if uid in (group_admins or []):
-                is_allowed = True
+        elif group_chat_id: # اگر در پیویه و گروه ثبت شده، چک کن که ادمین گروه اصلیه
+            try:
+                member = await bot.get_chat_member(group_chat_id, uid)
+                if member.status in ["creator", "administrator"]:
+                    is_allowed = True
+            except ChatAdminRequired:
+                pass # اگر ربات دسترسی ادمینی نداشته باشد
+            except Exception:
+                pass # خطاهای دیگر
 
     if not is_allowed:
         await message.reply("⛔ فقط گرداننده یا مدیران گروه می‌توانند لیست بازیکنان را مشاهده کنند.")
@@ -545,7 +549,7 @@ async def game_status_handler(message: types.Message):
 # =============================
 @dp.message_handler(lambda m: m.chat.type in ["group", "supergroup"] and m.text and m.text.strip() == "خروج")
 async def leave_game(message: types.Message):
-    global round_active
+    global round_active, players, player_slots, removed_players
 
     group_id = message.chat.id
     user_id = message.from_user.id
@@ -723,22 +727,6 @@ async def update_group_admins(bot, chat_id):
     admins = await bot.get_chat_administrators(chat_id)
     group_admins = [admin.user.id for admin in admins]
     
-# ======================
-# مدیریت بازی در پیوی
-# ======================
-async def manage_game_handler(callback: types.CallbackQuery):
-    # فقط در پیوی کار کنه
-    if callback.message.chat.type != "private":
-        return
-
-    group_id = group_chat_id  # یا اگر چند گروه داری باید با تابع پیدا کنی
-    await callback.message.edit_text(
-        "🎮 مدیریت بازی:",
-        reply_markup=manage_game_keyboard(group_id)
-    )
-    await callback.answer()
-
-
 
 # -------------------------
 # اضافه شدن به لیست رزرو (دکمه)
@@ -823,7 +811,7 @@ async def show_roles_list(user_id: int):
         return
 
     # 📆 تاریخ روز شمسی
-    today = JalaliDate.today().strftime("%Y/%m/%d")
+    today = jdatetime.date.today().strftime("%Y/%m/%d")
 
     max_players = len(scenarios[selected_scenario]["roles"])
     current_players = len(players)
