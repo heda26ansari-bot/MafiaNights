@@ -15,6 +15,7 @@ from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.utils.exceptions import MessageNotModified, MessageToEditNotFound, MessageCantBeEdited
 from nickname_patch import register_nickname_handlers, display_name
 from nicknames_manager import NicknameManager
+nicknames = NicknameManager()
 
 # نمونه از کلاس برای استفاده
 nicknames = NicknameManager()
