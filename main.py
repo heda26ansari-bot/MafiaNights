@@ -14,6 +14,8 @@ from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.utils.exceptions import MessageNotModified, MessageToEditNotFound, MessageCantBeEdited
 from nickname_patch import register_nickname_handlers, display_name
+from nicknames_manager import nicknames
+from nicknames_manager import display_name
 import jdatetime
 class AddScenario(StatesGroup):
     waiting_for_name = State()
@@ -86,6 +88,7 @@ extra_turns = []  # لیست بازیکن‌هایی که باید بعد از �
 last_next_time = 0
 next_by_players_enabled = True
 next_by_moderator_enabled = True
+last_role_map = {}
 
 
 # ======================
@@ -110,6 +113,20 @@ class PlayerDict(dict):
             return nick
 
         return super().get(uid, default)
+
+try:
+    from nicknames_manager import nicknames
+except:
+    nicknames = None
+
+if nicknames is None:
+    raise Exception("❌ nicknames_manager به‌درستی ایمپورت نشده است!")
+
+# اگر قبلاً تعریف نشده باشد
+global last_role_map
+last_role_map = {}
+
+
 
 # تبدیل players به نسخه سفارشی
 players = PlayerDict(players)
@@ -1291,6 +1308,7 @@ async def distribute_roles_callback(callback: types.CallbackQuery):
         )
         for seat, uid in player_slots.items()
     }
+
 
     disp = display_name(uid, name)
     players_list = "\n".join([
