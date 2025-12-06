@@ -41,57 +41,30 @@ class Nickname(Base):
 # ------------------------------------------------
 # کلاس NicknameManager جدید
 # ------------------------------------------------
-class NicknameManager:
+class DummyNicknameManager:
+    """کلاس جایگزین در صورت شکست اتصال به دیتابیس"""
     def __init__(self):
-        # مطمئن شوید که جدول nicknames در دیتابیس وجود دارد
-        Base.metadata.create_all(bind=engine)
-        logging.info("✅ اتصال به PostgreSQL و ایجاد جدول Nicknames موفقیت‌آمیز بود.")
-
+        logging.critical("❌ استفاده از حالت Dummy: نام مستعار ذخیره نخواهد شد.")
+        
     def set(self, user_id, nickname):
-        """نام مستعار جدیدی را برای کاربر تنظیم و ذخیره می‌کند."""
-        session = SessionLocal()
-        try:
-            # سعی در پیدا کردن رکورد
-            record = session.query(Nickname).filter(Nickname.user_id == user_id).first()
-
-            if record:
-                # اگر رکورد وجود داشت، آن را به روز رسانی کن
-                record.nickname = nickname
-            else:
-                # اگر وجود نداشت، رکورد جدیدی ایجاد کن
-                new_record = Nickname(user_id=user_id, nickname=nickname)
-                session.add(new_record)
-            
-            session.commit()
-        except Exception as e:
-            session.rollback()
-            logging.error(f"❌ خطای ذخیره‌سازی نام مستعار در دیتابیس: {e}")
-        finally:
-            session.close()
-
+        pass # عملیاتی انجام نمی‌دهد
+        
     def get(self, user_id):
-        """نام مستعار یک کاربر را دریافت می‌کند."""
-        session = SessionLocal()
-        try:
-            record = session.query(Nickname).filter(Nickname.user_id == user_id).first()
-            return record.nickname if record else None
-        except Exception as e:
-            logging.error(f"❌ خطای دریافت نام مستعار از دیتابیس: {e}")
-            return None
-        finally:
-            session.close()
-
+        return None
+        
     def all(self):
-        """همه نام‌های مستعار ذخیره شده را به صورت دیکشنری {user_id: nickname} برمی‌گرداند."""
-        session = SessionLocal()
-        try:
-            records = session.query(Nickname).all()
-            return {r.user_id: r.nickname for r in records}
-        except Exception as e:
-            logging.error(f"❌ خطای دریافت همه نام‌های مستعار: {e}")
-            return {}
-        finally:
-            session.close()
+        return {}
+
+
+# ------------------------------------------------
+# تعیین کلاس نهایی برای ایمپورت
+# ------------------------------------------------
+# کلاس نهایی که از این ماژول ایمپورت می‌شود
+FinalNicknameManager = NicknameManager 
+
+if not db_initialization_success:
+    # اگر اتصال دیتابیس شکست خورد، از کلاس Dummy استفاده کن
+    FinalNicknameManager = DummyNicknameManager
 
 # ------------------------------------------------
 # تست ایمپورت (برای برطرف کردن خطای قبلی)
