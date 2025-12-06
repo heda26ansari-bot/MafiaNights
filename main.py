@@ -14,8 +14,8 @@ from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.utils.exceptions import MessageNotModified, MessageToEditNotFound, MessageCantBeEdited
 from nickname_patch import register_nickname_handlers, display_name
-from nicknames_manager import NicknameManager
-nicknames = NicknameManager()
+from nicknames_manager import FinalNicknameManager # <--- تغییر نام ایمپورت
+nicknames = FinalNicknameManager()
 
 import jdatetime
 class AddScenario(StatesGroup):
