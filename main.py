@@ -111,7 +111,7 @@ class PlayerDict(dict):
         return "❓"
 
     def get(self, uid, default=None):
-        nick = nicknames.get_nick(uid)
+        nick = nicknames.get(uid)
         if nick:
             return nick
 
