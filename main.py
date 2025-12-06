@@ -13,9 +13,10 @@ from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.utils.exceptions import MessageNotModified, MessageToEditNotFound, MessageCantBeEdited
-from nickname_patch import register_nickname_handlers, display_name
+from nickname_patch import register_nickname_handlers, display_name, set_global_nick_manager 
 from nicknames_manager import FinalNicknameManager # <--- تغییر نام ایمپورت
 nicknames = FinalNicknameManager()
+
 
 import jdatetime
 class AddScenario(StatesGroup):
@@ -38,6 +39,7 @@ if not API_TOKEN:
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=API_TOKEN, parse_mode="HTML")
 dp = Dispatcher(bot, storage=MemoryStorage())
+set_global_nick_manager(nicknames) # <--- این خط را اضافه کنید
 register_nickname_handlers(dp, bot)
 addons = MafiaAddons(bot)
 addons.setup_handlers(dp)
@@ -2808,10 +2810,18 @@ async def start_turn(seat, duration=DEFAULT_TURN_DURATION, is_challenge=False):
         await bot.send_message(group_chat_id, f"⚠️ صندلی {seat} خالیه .")
         return
 
-    user_id = player_slots[seat]
-    player_uid = player_slots.get(i)
-    player_name = display_name(player_uid, players.get(player_uid, "❓"))
-    disp = display_name(user_id, player_name)
+    # 1. استخراج user_id و نام مستعار
+    # user_id اکنون شناسه بازیکن است و دیگر نیازی به player_uid ندارید
+    user_id = player_slots[seat] 
+    
+    # ❌ خط مشکل‌ساز حذف شد و logic آن در متغیرهای زیر ادغام شد:
+    # player_uid = player_slots.get(i) 
+    
+    # 2. دریافت نام نمایشی (استفاده از display_name برای نام مستعار)
+    player_name_fallback = players.get(user_id, "❓")
+    disp = display_name(user_id, player_name_fallback)
+    
+    # 3. ساختار منشن
     mention = f"<a href='tg://user?id={user_id}'>{html.escape(disp)}</a>"
 
 
@@ -2930,26 +2940,36 @@ async def challenge_toggle_handler(callback: types.CallbackQuery):
 #=============================
 async def countdown(seat, duration, message_id, is_challenge=False):
     remaining = duration
+    
+    # 1. FIX: رفع خطای i و یکپارچه‌سازی منطق دریافت نام
     user_id = player_slots.get(seat)
-    player_uid = player_slots.get(i)
-    player_name = display_name(player_uid, players.get(player_uid, "❓"))
-    disp = display_name(user_id, player_name)
+    if not user_id:
+        return
+        
+    player_name_fallback = players.get(user_id, "❓")
+    disp = display_name(user_id, player_name_fallback)
     mention = f"<a href='tg://user?id={user_id}'>{html.escape(disp)}</a>"
 
 
-    # 🔧 تعیین prefix (برای رنگ‌بندی نوبت / امکانات افزونه)
-    prefix = ""
-    try:
-        prefix = addons.settings.get("turn_timer", {}).get("prefix", "")
-    except:
+    # 2. FIX: محاسبه دینامیک prefix بر اساس is_challenge (حل مشکل رنگ)
+    use_primary = addons.settings.get("color", {}).get("primary", True)
+    use_challenge_color = addons.settings.get("color", {}).get("challenge", True)
+
+    if is_challenge and use_challenge_color:
+        prefix = "🟥"  # رنگ چالش
+    elif use_primary:
+        prefix = "🟦" # رنگ نوبت عادی
+    else:
         prefix = ""
+    # ❌ خط Prefix قدیمی و ناقص حذف شد
+
 
     try:
         while remaining > 0:
             await asyncio.sleep(5)
             remaining -= 5
 
-            # پیام جدید تایمر
+            # پیام جدید تایمر - استفاده از prefix دینامیک
             new_text = (
                 f"{prefix} ⏳ {max(0, remaining)//60:02d}:{max(0, remaining)%60:02d}\n"
                 f"🎙 نوبت صحبت {mention} ست. ({max(0, remaining)} ثانیه)"
@@ -2963,8 +2983,10 @@ async def countdown(seat, duration, message_id, is_challenge=False):
                     parse_mode="HTML",
                     reply_markup=turn_keyboard(seat, is_challenge)
                 )
-            except:
+            except (MessageNotModified, MessageToEditNotFound, MessageCantBeEdited):
                 pass
+            except Exception as e:
+                logging.error(f"❌ خطای ویرایش پیام در شمارش معکوس: {e}")
 
         # پایان زمان
         await send_temp_message(
@@ -2975,7 +2997,6 @@ async def countdown(seat, duration, message_id, is_challenge=False):
 
     except asyncio.CancelledError:
         return
-
 
 # ======================
 # نکست نوبت
