@@ -117,14 +117,6 @@ class PlayerDict(dict):
 
         return super().get(uid, default)
 
-try:
-    from nicknames_manager import nicknames
-except:
-    nicknames = None
-
-if nicknames is None:
-    raise Exception("❌ nicknames_manager به‌درستی ایمپورت نشده است!")
-
 # اگر قبلاً تعریف نشده باشد
 global last_role_map
 last_role_map = {}
