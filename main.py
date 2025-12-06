@@ -1283,17 +1283,20 @@ async def distribute_roles_callback(callback: types.CallbackQuery):
         await callback.answer("❌ خطا در پخش نقش‌ها.", show_alert=True)
         return
 
-    # نمایش لیست بازیکنان در گروه
+    # ساخت لیست صندلی‌ها با نام نمایشی (Display Name)
     seats = {
         seat: (
             uid,
+            # ✅ استفاده از display_name در اینجا برای تعیین نام نمایشی
             display_name(uid, players.get(uid, "❓"))
         )
         for seat, uid in player_slots.items()
     }
 
 
-    disp = display_name(uid, name)
+    # ❌ خط 'disp = display_name(uid, name)' که خطا می‌داد، حذف شد.
+    
+    # ساخت لیست HTML بازیکنان برای نمایش عمومی
     players_list = "\n".join([
         f"{seat:02d}. <a href='tg://user?id={uid}'>{html.escape(name)}</a>"
         for seat, (uid, name) in sorted(seats.items())
@@ -1311,7 +1314,7 @@ async def distribute_roles_callback(callback: types.CallbackQuery):
     kb.add(InlineKeyboardButton("👑 انتخاب سر صحبت", callback_data="choose_head"))
     kb.add(InlineKeyboardButton("▶ شروع دور", callback_data="start_round"))
     kb.add(InlineKeyboardButton("⚔ چالش روشن" if challenge_active else "⚔ چالش خاموش",
-                                callback_data="challenge_toggle"))
+                                 callback_data="challenge_toggle"))
 
     # ویرایش یا ارسال پیام بازی در گروه
     try:
@@ -1349,18 +1352,21 @@ async def distribute_roles_callback(callback: types.CallbackQuery):
 
     # 💠 ارسال لیست نقش‌ها به گرداننده (مثل resend_roles)
     try:
-        fancy_text = "༄\n    Mafia Nights\n\n"
+        fancy_text = "༄\n    Mafia Nights\n\n"
         fancy_text += "⏱ Time : 21:00\n"
         fancy_text += f"📆 Date : {get_jalali_today()}\n"
         fancy_text += f"🗓 Scenario : {selected_scenario}\n"
-        fancy_text += f"👮‍♂ God : {players.get(moderator_id, '❓')}\n\n"
+        # استفاده از display_name برای نام گرداننده
+        mod_name = display_name(moderator_id, players.get(moderator_id, '❓')) 
+        fancy_text += f"👮‍♂ God : {mod_name}\n\n" # <--- اصلاح شد
         fancy_text += " ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ \n"
-        fancy_text += "          لیست نقش‌ها\n"
+        fancy_text += "          لیست نقش‌ها\n"
         fancy_text += "◤◢◣◥◤◢◣◥◤◢◣◥\n\n"
 
         for seat in sorted(player_slots.keys()):
             uid = player_slots[seat]
             role = last_role_map.get(uid, "❓")
+            # ✅ استفاده از display_name در این بخش صحیح است
             name = display_name(uid, players.get(uid, "❓"))
             mention = f"<a href='tg://user?id={uid}'><b>{html.escape(name)}</b></a>"
             fancy_text += f"\u200E{seat:02d} {mention} — {html.escape(role)}\n"
@@ -1370,8 +1376,6 @@ async def distribute_roles_callback(callback: types.CallbackQuery):
         await bot.send_message(moderator_id, fancy_text, parse_mode="HTML")
     except Exception as e:
         logging.warning("⚠️ ارسال لیست نقش‌ها به گرداننده شکست خورد: %s", e)
-
-
 #==================
 
 # =========================
